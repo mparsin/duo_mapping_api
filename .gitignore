@@ -1,0 +1,22 @@
+/9-6-2025-11-17.sql
+/9-6-2025-11-20.sql
+/9-7-2025-7-28.sql
+/9-8-2025-11-36 (before extensions).sql
+
+
+# IDEs and editors
+.idea/
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+*.sublime-workspace
+
+# Visual Studio Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.history/*
