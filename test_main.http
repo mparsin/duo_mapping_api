@@ -1,0 +1,198 @@
+# Test your FastAPI endpoints
+
+### Health Check
+GET http://localhost:8000/api/health
+Accept: application/json
+
+###
+
+### Get all categories
+GET http://localhost:8000/api/categories
+Accept: application/json
+
+###
+
+### Get sub-categories for category 2
+GET http://localhost:8000/api/categories/2/sub-categories
+Accept: application/json
+
+###
+
+### Get sub-categories for non-existent category (should return 404)
+GET http://localhost:8000/api/categories/999/sub-categories
+Accept: application/json
+
+###
+
+### Get lines for category 1
+GET http://localhost:8000/api/categories/1/lines
+Accept: application/json
+
+###
+
+### Get lines for non-existent category (should return 404)
+GET http://localhost:8000/api/categories/999/lines
+Accept: application/json
+
+###
+
+### Get all ERP tables
+GET http://localhost:8000/api/tables
+Accept: application/json
+
+###
+
+### Get columns for ERP table 1
+GET http://localhost:8000/api/tables/1/columns
+Accept: application/json
+
+###
+
+### Get columns for non-existent ERP table (should return 404)
+GET http://localhost:8000/api/tables/999/columns
+Accept: application/json
+
+###
+
+### Update line with ID 1 (should update if exists)
+PATCH http://localhost:8000/api/lines/1
+Content-Type: application/json
+
+{
+  "table_id": 1,
+  "column_id": 1
+}
+
+###
+
+### Update non-existent line with ID 999 (should return 404)
+PATCH http://localhost:8000/api/lines/999
+Content-Type: application/json
+
+{
+  "table_id": 1,
+  "column_id": 1
+}
+
+###
+
+### Update line with invalid table_id (should return 404)
+PATCH http://localhost:8000/api/lines/1
+Content-Type: application/json
+
+{
+  "table_id": 999,
+  "column_id": 1
+}
+
+###
+
+### Update line with invalid column_id (should return 404)
+PATCH http://localhost:8000/api/lines/1
+Content-Type: application/json
+
+{
+  "table_id": 1,
+  "column_id": 999
+}
+
+###
+
+### Update line with column that doesn't belong to table (should return 400)
+PATCH http://localhost:8000/api/lines/1
+Content-Type: application/json
+
+{
+  "table_id": 1,
+  "column_id": 2
+}
+
+###
+
+### Update line with only table_id (column_id not provided)
+PATCH http://localhost:8000/api/lines/1
+Content-Type: application/json
+
+{
+  "table_id": 1
+}
+
+###
+
+### Update line with table_id and null column_id
+PATCH http://localhost:8000/api/lines/1
+Content-Type: application/json
+
+{
+  "table_id": 1,
+  "column_id": null
+}
+
+###
+
+### Clear all table_ids for the category (set table_id to null)
+PATCH http://localhost:8000/api/lines/1
+Content-Type: application/json
+
+{
+  "table_id": null
+}
+
+###
+
+### Clear all table_ids for the category (set table_id to 0)
+PATCH http://localhost:8000/api/lines/1
+Content-Type: application/json
+
+{
+  "table_id": 0
+}
+
+###
+
+### Clear all column_ids for the category (set column_id to 0)
+PATCH http://localhost:8000/api/lines/1
+Content-Type: application/json
+
+{
+  "table_id": 1,
+  "column_id": 0
+}
+
+###
+
+### Search columns by name (exact match)
+GET http://localhost:8000/api/search-columns?columnName=name
+Accept: application/json
+
+###
+
+### Search columns by name (partial match)
+GET http://localhost:8000/api/search-columns?columnName=id
+Accept: application/json
+
+###
+
+### Search columns by name (case insensitive)
+GET http://localhost:8000/api/search-columns?columnName=NAME
+Accept: application/json
+
+###
+
+### Search columns by name (no matches)
+GET http://localhost:8000/api/search-columns?columnName=nonexistent
+Accept: application/json
+
+###
+
+### Search columns by name (empty parameter - should return 400)
+GET http://localhost:8000/api/search-columns?columnName=
+Accept: application/json
+
+###
+
+### Search columns by name (missing parameter - should return 422)
+GET http://localhost:8000/api/search-columns
+Accept: application/json
+
+###
