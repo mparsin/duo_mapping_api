@@ -1,0 +1,23 @@
+FROM public.ecr.aws/lambda/python:3.11
+
+# Install system dependencies for psycopg2 and zip
+RUN yum update -y && \
+    yum install -y gcc postgresql-devel zip && \
+    yum clean all
+
+# Copy requirements and install dependencies
+COPY requirements.txt /tmp/
+RUN pip install --upgrade pip && \
+    pip install -r /tmp/requirements.txt -t /var/task/
+
+# Copy application files
+COPY main.py database.py schemas.py lambda_function.py /var/task/
+
+# Set working directory
+WORKDIR /var/task
+
+# Create zip package
+RUN zip -r /tmp/lambda_full_package.zip .
+
+# Default command
+CMD ["echo", "Lambda package built successfully"]

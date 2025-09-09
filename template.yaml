@@ -1,0 +1,46 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Duo Mapping API - FastAPI on Lambda
+
+Globals:
+  Function:
+    Timeout: 30
+    MemorySize: 512
+    Runtime: python3.11
+
+Parameters:
+  DatabaseURL:
+    Type: String
+    Default: "postgresql://postgres:postgres@duo-mapping.cefhyz1bpgbv.us-east-2.rds.amazonaws.com:5432/duo-mapping-db"
+    Description: PostgreSQL database connection string
+
+Resources:
+  DuoMappingApi:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: duo-mapping-api
+      CodeUri: .
+      Handler: lambda_function.handler
+      Environment:
+        Variables:
+          DATABASE_URL: !Ref DatabaseURL
+      Events:
+        ApiProxy:
+          Type: Api
+          Properties:
+            Path: /{proxy+}
+            Method: ANY
+        ApiRoot:
+          Type: Api
+          Properties:
+            Path: /
+            Method: ANY
+
+Outputs:
+  ApiUrl:
+    Description: "API Gateway endpoint URL"
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/"
+  
+  ApiUrlWithPath:
+    Description: "API Gateway endpoint URL with /api path"
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/api/"

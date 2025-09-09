@@ -1,0 +1,16 @@
+{
+  "httpMethod": "GET",
+  "path": "/",
+  "queryStringParameters": null,
+  "headers": {
+    "Content-Type": "application/json"
+  },
+  "body": null,
+  "isBase64Encoded": false,
+  "requestContext": {
+    "requestId": "test-request",
+    "stage": "prod",
+    "resourcePath": "/",
+    "httpMethod": "GET"
+  }
+}
