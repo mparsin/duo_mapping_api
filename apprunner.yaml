@@ -1,0 +1,13 @@
+version: 1.0
+runtime: docker
+build:
+  commands:
+    build:
+      - echo "Building Docker image"
+run:
+  command: uv run uvicorn main:app --host 0.0.0.0 --port 8000
+  network:
+    port: 8000
+  env:
+    - name: DATABASE_URL
+      value: "postgresql://postgres:postgres@duo-mapping.cefhyz1bpgbv.us-east-2.rds.amazonaws.com:5432/duo-mapping-db"
