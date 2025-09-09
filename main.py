@@ -2,15 +2,16 @@ from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session, joinedload
 from database import get_db, Category, Lines, ERPTable, ERPColumn, SubCategory
-from schemas import Category as CategorySchema, Lines as LinesSchema, ERPTable as ERPTableSchema, ERPColumn as ERPColumnSchema, LineCreate, LineResponse, SubCategory as SubCategorySchema, ColumnSearchResult
+from schemas import Category as CategorySchema, Lines as LinesSchema, ERPTable as ERPTableSchema, ERPColumn as ERPColumnSchema, LineCreate, LineResponse, SubCategory as SubCategorySchema, ColumnSearchResult, TableMatchRequest, TableMatchResult
 from typing import List
+from sqlalchemy import func
 
 app = FastAPI(title="Duo Mapping API", version="1.0.0")
 
-# Configure CORS
+# Configure CORS - Update this section
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:4200"],
+    allow_origins=["*"],  # Allow all origins for public API
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -20,6 +21,32 @@ app.add_middleware(
 from fastapi import APIRouter
 api_router = APIRouter(prefix="/api")
 
+# Helper function to calculate and update percent_mapped for a category
+def update_category_percent_mapped(db: Session, category_id: int):
+    """Calculate and update the percent_mapped field for a category"""
+    # Get total lines count for this category
+    total_lines = db.query(func.count(Lines.id)).filter(Lines.categoryid == category_id).scalar()
+    
+    if total_lines == 0:
+        # No lines in category, set percent to 0
+        percent_mapped = 0.0
+    else:
+        # Count mapped lines (lines that have both table_id and column_id)
+        mapped_lines = db.query(func.count(Lines.id)).filter(
+            Lines.categoryid == category_id,
+            Lines.table_id.isnot(None),
+            Lines.column_id.isnot(None)
+        ).scalar()
+        
+        # Calculate percentage
+        percent_mapped = (mapped_lines / total_lines) * 100.0
+    
+    # Update the category's percent_mapped field
+    db.query(Category).filter(Category.id == category_id).update({
+        Category.percent_mapped: percent_mapped
+    })
+    db.commit()
+
 @app.get("/")
 async def root():
     return {"message": "Duo Mapping API is running"}
@@ -27,9 +54,17 @@ async def root():
 # API endpoints with /api prefix
 @api_router.get("/categories", response_model=List[CategorySchema])
 async def get_categories(db: Session = Depends(get_db)):
-    """Get all categories"""
-    categories = db.query(Category).all()
+    """Get all categories ordered by ID"""
+    categories = db.query(Category).order_by(Category.id).all()
     return categories
+
+@api_router.get("/categories/{category_id}", response_model=CategorySchema)
+async def get_category(category_id: int, db: Session = Depends(get_db)):
+    """Get a specific category by ID"""
+    category = db.query(Category).filter(Category.id == category_id).first()
+    if not category:
+        raise HTTPException(status_code=404, detail="Category not found")
+    return category
 
 @api_router.get("/categories/{category_id}/sub-categories", response_model=List[SubCategorySchema])
 async def get_sub_categories_by_category(category_id: int, db: Session = Depends(get_db)):
@@ -111,6 +146,9 @@ async def update_line(line_id: int, line_data: LineCreate, db: Session = Depends
         existing_line.column_id = None
         db.commit()
         
+        # Update percent_mapped for the category
+        update_category_percent_mapped(db, existing_line.categoryid)
+        
         # Load the updated line for response
         updated_line = db.query(Lines).options(
             joinedload(Lines.erp_table),
@@ -157,6 +195,9 @@ async def update_line(line_id: int, line_data: LineCreate, db: Session = Depends
     
     db.commit()
     db.refresh(existing_line)
+    
+    # Update percent_mapped for the category
+    update_category_percent_mapped(db, existing_line.categoryid)
     
     # Load the related table and column data for the response
     updated_line = db.query(Lines).options(
@@ -215,6 +256,65 @@ async def search_columns(columnName: str, db: Session = Depends(get_db)):
     
     # Return exact matches first, then partial matches
     return exact_matches + partial_matches
+
+@api_router.post("/find-table-matches", response_model=List[TableMatchResult])
+async def find_table_matches(request: TableMatchRequest, db: Session = Depends(get_db)):
+    """Find tables with the most column matches from a list of column names"""
+    if not request.column_names or len(request.column_names) == 0:
+        raise HTTPException(status_code=400, detail="column_names list cannot be empty")
+    
+    # Clean and normalize column names for case-insensitive matching
+    search_columns = [col.strip().lower() for col in request.column_names if col.strip()]
+    
+    if not search_columns:
+        raise HTTPException(status_code=400, detail="No valid column names provided")
+    
+    # Get all tables with their columns
+    tables = db.query(ERPTable).options(joinedload(ERPTable.columns)).all()
+    
+    table_matches = []
+    
+    for table in tables:
+        matched_columns = []
+        match_count = 0
+        
+        # Check each column in the table against our search list
+        for column in table.columns:
+            column_name_lower = column.name.lower()
+            
+            # Check for exact matches only
+            if column_name_lower in search_columns:
+                matched_columns.append(column.name)
+                match_count += 1
+        
+        # Only include tables that have at least one match
+        if match_count > 0:
+            table_matches.append(TableMatchResult(
+                table_id=table.id,
+                table_name=table.name,
+                match_count=match_count,
+                matched_columns=matched_columns
+            ))
+    
+    # Sort by match count (descending) and then by table name (ascending) for consistent ordering
+    table_matches.sort(key=lambda x: (-x.match_count, x.table_name))
+    
+    return table_matches
+
+@api_router.post("/categories/recalculate-percent-mapped")
+async def recalculate_all_percent_mapped(db: Session = Depends(get_db)):
+    """Recalculate percent_mapped for all categories"""
+    categories = db.query(Category).all()
+    updated_count = 0
+    
+    for category in categories:
+        update_category_percent_mapped(db, category.id)
+        updated_count += 1
+    
+    return {
+        "message": f"Successfully recalculated percent_mapped for {updated_count} categories",
+        "updated_count": updated_count
+    }
 
 @api_router.get("/health")
 async def health_check():

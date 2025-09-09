@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, Integer, String, BigInteger, ForeignKey
+from sqlalchemy import create_engine, Column, Integer, String, BigInteger, ForeignKey, Float
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 import os
@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Database configuration
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/duo-mapping")
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@duo-mapping.cefhyz1bpgbv.us-east-2.rds.amazonaws.com:5432/duo-mapping-db")
 
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -20,6 +20,7 @@ class Category(Base):
     
     id = Column(Integer, primary_key=True, autoincrement=True)
     Name = Column(String(200), nullable=False)
+    percent_mapped = Column(Float, default=0.0)
     
     # Relationships
     lines = relationship("Lines", back_populates="category")

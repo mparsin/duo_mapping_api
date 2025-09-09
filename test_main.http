@@ -6,8 +6,65 @@ Accept: application/json
 
 ###
 
-### Get all categories
+### Get all categories (should include percent_mapped field)
 GET http://localhost:8000/api/categories
+Accept: application/json
+
+###
+
+### Get individual category by ID (should return category 9)
+GET http://localhost:8000/api/categories/9
+Accept: application/json
+
+###
+
+### Get individual category by ID (should return category 1)
+GET http://localhost:8000/api/categories/1
+Accept: application/json
+
+###
+
+### Get non-existent category (should return 404)
+GET http://localhost:8000/api/categories/999
+Accept: application/json
+
+###
+
+### Test percent_mapped calculation - Map a line first
+PATCH http://localhost:8000/api/lines/1
+Content-Type: application/json
+
+{
+  "table_id": 1,
+  "column_id": 1
+}
+
+###
+
+### Check categories after mapping (percent_mapped should be updated)
+GET http://localhost:8000/api/categories
+Accept: application/json
+
+###
+
+### Test percent_mapped calculation - Clear the mapping
+PATCH http://localhost:8000/api/lines/1
+Content-Type: application/json
+
+{
+  "table_id": 0
+}
+
+###
+
+### Check categories after unmapping (percent_mapped should be updated)
+GET http://localhost:8000/api/categories
+Accept: application/json
+
+###
+
+### Recalculate percent_mapped for all categories (useful for initial data setup)
+POST http://localhost:8000/api/categories/recalculate-percent-mapped
 Accept: application/json
 
 ###
@@ -194,5 +251,75 @@ Accept: application/json
 ### Search columns by name (missing parameter - should return 422)
 GET http://localhost:8000/api/search-columns
 Accept: application/json
+
+###
+
+### Find table matches with multiple column names
+POST http://localhost:8000/api/find-table-matches
+Content-Type: application/json
+
+{
+  "column_names": ["name", "id", "description", "type"]
+}
+
+###
+
+### Find table matches with single column name
+POST http://localhost:8000/api/find-table-matches
+Content-Type: application/json
+
+{
+  "column_names": ["name"]
+}
+
+###
+
+### Find table matches with case insensitive search
+POST http://localhost:8000/api/find-table-matches
+Content-Type: application/json
+
+{
+  "column_names": ["NAME", "Id", "DESCRIPTION"]
+}
+
+###
+
+### Find table matches with partial matches
+POST http://localhost:8000/api/find-table-matches
+Content-Type: application/json
+
+{
+  "column_names": ["table", "column", "category"]
+}
+
+###
+
+### Find table matches with empty list (should return 400)
+POST http://localhost:8000/api/find-table-matches
+Content-Type: application/json
+
+{
+  "column_names": []
+}
+
+###
+
+### Find table matches with no valid column names (should return 400)
+POST http://localhost:8000/api/find-table-matches
+Content-Type: application/json
+
+{
+  "column_names": ["", "   ", "  "]
+}
+
+###
+
+### Find table matches with non-existent columns (should return empty list)
+POST http://localhost:8000/api/find-table-matches
+Content-Type: application/json
+
+{
+  "column_names": ["nonexistent_column_1", "nonexistent_column_2"]
+}
 
 ###

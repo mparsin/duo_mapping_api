@@ -7,6 +7,7 @@ class CategoryBase(BaseModel):
 
 class Category(CategoryBase):
     id: int
+    percent_mapped: float = 0.0
     
     class Config:
         from_attributes = True
@@ -91,6 +92,20 @@ class ColumnSearchResult(BaseModel):
     column_id: int
     table_id: int
     match_type: str  # "exact" or "partial"
+    
+    class Config:
+        from_attributes = True
+
+# Table match request schema
+class TableMatchRequest(BaseModel):
+    column_names: List[str]
+
+# Table match result schema
+class TableMatchResult(BaseModel):
+    table_id: int
+    table_name: str
+    match_count: int
+    matched_columns: List[str]
     
     class Config:
         from_attributes = True
