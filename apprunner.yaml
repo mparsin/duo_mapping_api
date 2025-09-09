@@ -1,13 +1,2 @@
 version: 1.0
 runtime: docker
-build:
-  commands:
-    build:
-      - docker build -t duo-mapping-api .
-run:
-  command: docker run -p 8000:8000 duo-mapping-api
-  network:
-    port: 8000
-  env:
-    - name: DATABASE_URL
-      value: "postgresql://postgres:postgres@duo-mapping.cefhyz1bpgbv.us-east-2.rds.amazonaws.com:5432/duo-mapping-db"
