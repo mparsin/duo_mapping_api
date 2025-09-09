@@ -7,7 +7,7 @@ RUN apt-get update && apt-get install -y \
     gcc \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy dependency files
+# Copy dependency files first for better caching
 COPY pyproject.toml uv.lock ./
 
 # Install UV package manager

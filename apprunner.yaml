@@ -3,13 +3,11 @@ runtime: docker
 build:
   commands:
     build:
-      - echo "Build completed"
+      - docker build -t duo-mapping-api .
 run:
-  runtime-version: latest
-  command: uv run uvicorn main:app --host 0.0.0.0 --port 8000
+  command: docker run -p 8000:8000 duo-mapping-api
   network:
     port: 8000
-    env: PORT
   env:
-    - name: PORT
-      value: "8000"
+    - name: DATABASE_URL
+      value: "postgresql://postgres:postgres@duo-mapping.cefhyz1bpgbv.us-east-2.rds.amazonaws.com:5432/duo-mapping-db"
