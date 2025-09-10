@@ -1,0 +1,35 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "LambdaDeploymentPermissions",
+            "Effect": "Allow",
+            "Action": [
+                "lambda:UpdateFunctionCode",
+                "lambda:GetFunction",
+                "lambda:UpdateFunctionConfiguration"
+            ],
+            "Resource": "arn:aws:lambda:us-east-1:393512459264:function:duo-mapping-api"
+        },
+        {
+            "Sid": "LambdaWaitPermissions",
+            "Effect": "Allow",
+            "Action": [
+                "lambda:GetFunction"
+            ],
+            "Resource": "arn:aws:lambda:us-east-1:393512459264:function:duo-mapping-api"
+        },
+        {
+            "Sid": "LogsReadPermissions",
+            "Effect": "Allow",
+            "Action": [
+                "logs:DescribeLogGroups",
+                "logs:DescribeLogStreams"
+            ],
+            "Resource": [
+                "arn:aws:logs:us-east-1:393512459264:log-group:/aws/lambda/duo-mapping-api",
+                "arn:aws:logs:us-east-1:393512459264:log-group:/aws/lambda/duo-mapping-api:*"
+            ]
+        }
+    ]
+}
