@@ -24,16 +24,22 @@ api_router = APIRouter(prefix="/api")
 # Helper function to calculate and update percent_mapped for a category
 def update_category_percent_mapped(db: Session, category_id: int):
     """Calculate and update the percent_mapped field for a category"""
-    # Get total lines count for this category
-    total_lines = db.query(func.count(Lines.id)).filter(Lines.categoryid == category_id).scalar()
+    # Get total lines count for this category (only lines with non-empty field_name)
+    total_lines = db.query(func.count(Lines.id)).filter(
+        Lines.categoryid == category_id,
+        Lines.field_name.isnot(None),
+        Lines.field_name != ""
+    ).scalar()
     
     if total_lines == 0:
-        # No lines in category, set percent to 0
+        # No lines with field_name in category, set percent to 0
         percent_mapped = 0.0
     else:
-        # Count mapped lines (lines that have both table_id and column_id)
+        # Count mapped lines (lines that have both table_id and column_id AND non-empty field_name)
         mapped_lines = db.query(func.count(Lines.id)).filter(
             Lines.categoryid == category_id,
+            Lines.field_name.isnot(None),
+            Lines.field_name != "",
             Lines.table_id.isnot(None),
             Lines.column_id.isnot(None)
         ).scalar()
