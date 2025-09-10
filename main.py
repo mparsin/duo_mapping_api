@@ -103,7 +103,7 @@ async def get_sub_category(category_id: int, sub_category_id: int, db: Session =
     
     return sub_category
 
-@api_router.put("/categories/{category_id}/sub-categories/{sub_category_id}", response_model=SubCategorySchema)
+@api_router.patch("/categories/{category_id}/sub-categories/{sub_category_id}", response_model=SubCategorySchema)
 async def create_or_update_sub_category(
     category_id: int, 
     sub_category_id: int, 
