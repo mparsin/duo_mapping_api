@@ -89,6 +89,35 @@ def test_subcategory_database_model():
     except Exception as e:
         pytest.fail(f"SubCategory database model test failed: {e}")
 
+def test_schema_generation_function():
+    """Test that schema generation function exists and has correct structure"""
+    try:
+        from main import generate_mapped_schema
+        
+        # Test function exists and is callable
+        assert callable(generate_mapped_schema), "generate_mapped_schema should be callable"
+        
+        # Test function signature (should accept db session)
+        import inspect
+        sig = inspect.signature(generate_mapped_schema)
+        assert 'db' in sig.parameters, "generate_mapped_schema should accept db parameter"
+        
+    except Exception as e:
+        pytest.fail(f"Schema generation function test failed: {e}")
+
+def test_download_schema_endpoint_structure():
+    """Test that download schema endpoint exists"""
+    try:
+        from main import app
+        
+        # Test that the app has the schema endpoint in its routes
+        routes = [route.path for route in app.routes]
+        schema_route_exists = any('/api/download-schema' in route for route in routes)
+        assert schema_route_exists, "Schema download endpoint should exist"
+        
+    except Exception as e:
+        pytest.fail(f"Download schema endpoint test failed: {e}")
+
 if __name__ == "__main__":
     print("Running basic API tests...")
     test_imports()
@@ -97,4 +126,6 @@ if __name__ == "__main__":
     test_root_endpoint_structure()
     test_subcategory_schema()
     test_subcategory_database_model()
+    test_schema_generation_function()
+    test_download_schema_endpoint_structure()
     print("✅ All tests passed!")

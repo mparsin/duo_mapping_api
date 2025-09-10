@@ -422,3 +422,9 @@ Content-Type: application/json
 }
 
 ###
+
+### Download schema file with mapped tables and columns only
+GET http://localhost:8000/api/download-schema
+Accept: application/json
+
+###

@@ -1,10 +1,13 @@
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session, joinedload
 from database import get_db, Category, Lines, ERPTable, ERPColumn, SubCategory
 from schemas import Category as CategorySchema, Lines as LinesSchema, ERPTable as ERPTableSchema, ERPColumn as ERPColumnSchema, LineCreate, LineResponse, SubCategory as SubCategorySchema, SubCategoryUpdate, ColumnSearchResult, TableMatchRequest, TableMatchResult
-from typing import List
+from typing import List, Dict, Any
 from sqlalchemy import func
+import json
+from datetime import datetime
 
 app = FastAPI(title="Duo Mapping API", version="1.0.0")
 
@@ -52,6 +55,80 @@ def update_category_percent_mapped(db: Session, category_id: int):
         Category.percent_mapped: percent_mapped
     })
     db.commit()
+
+# Helper function to generate schema JSON for mapped tables and columns
+def generate_mapped_schema(db: Session) -> Dict[str, Any]:
+    """Generate schema JSON containing only tables and columns that have mappings"""
+    
+    # Get all mapped lines (lines that have both table_id and column_id)
+    mapped_lines = db.query(Lines).filter(
+        Lines.table_id.isnot(None),
+        Lines.column_id.isnot(None)
+    ).options(
+        joinedload(Lines.erp_table),
+        joinedload(Lines.erp_column)
+    ).all()
+    
+    # Group mapped columns by table
+    tables_dict = {}
+    
+    for line in mapped_lines:
+        table = line.erp_table
+        column = line.erp_column
+        
+        if not table or not column:
+            continue
+            
+        table_name = table.name
+        
+        # Initialize table entry if not exists
+        if table_name not in tables_dict:
+            tables_dict[table_name] = {
+                "name": table_name,
+                "description": table.description or f"Table {table_name}",
+                "columns": {}
+            }
+        
+        # Add column if not already added (avoid duplicates)
+        column_name = column.name
+        if column_name not in tables_dict[table_name]["columns"]:
+            # Create column entry with available data
+            column_entry = {
+                "name": column_name,
+                "type": column.type or "unknown",
+                "constraints": {
+                    "not_null": None,  # Not available in current schema
+                    "primary_key": None,  # Not available in current schema
+                    "unique": None,  # Not available in current schema
+                    "default": None,  # Not available in current schema
+                    "check": None,  # Not available in current schema
+                    "references": None  # Not available in current schema
+                },
+                "sequence": None,  # Not available in current schema
+                "comment": column.comment
+            }
+            
+            tables_dict[table_name]["columns"][column_name] = column_entry
+    
+    # Convert to final format (list of tables with columns as list)
+    tables_list = []
+    for table_data in tables_dict.values():
+        table_entry = {
+            "name": table_data["name"],
+            "description": table_data["description"],
+            "columns": list(table_data["columns"].values())
+        }
+        tables_list.append(table_entry)
+    
+    # Sort tables by name for consistent output
+    tables_list.sort(key=lambda x: x["name"])
+    
+    return {
+        "tables": tables_list,
+        "generated_at": datetime.utcnow().isoformat() + "Z",
+        "total_tables": len(tables_list),
+        "total_mapped_columns": sum(len(table["columns"]) for table in tables_list)
+    }
 
 @app.get("/")
 async def root():
@@ -382,6 +459,28 @@ async def recalculate_all_percent_mapped(db: Session = Depends(get_db)):
 async def health_check():
     """Health check endpoint"""
     return {"status": "healthy"}
+
+@api_router.get("/download-schema")
+async def download_schema(db: Session = Depends(get_db)):
+    """Generate and download schema file containing only mapped tables and columns"""
+    try:
+        # Generate the schema
+        schema_data = generate_mapped_schema(db)
+        
+        # Create filename with timestamp
+        timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        filename = f"mapped_schema_{timestamp}.json"
+        
+        # Return as JSON download
+        return JSONResponse(
+            content=schema_data,
+            headers={
+                "Content-Disposition": f"attachment; filename={filename}",
+                "Content-Type": "application/json"
+            }
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error generating schema: {str(e)}")
 
 # Include the API router
 app.include_router(api_router)
