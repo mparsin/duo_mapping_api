@@ -81,6 +81,60 @@ Accept: application/json
 
 ###
 
+### Create or update sub-category with comment
+PUT http://localhost:8000/api/categories/1/sub-categories/10
+Content-Type: application/json
+
+{
+  "name": "Test Sub-Category",
+  "comment": "This is a test comment for the sub-category"
+}
+
+###
+
+### Create or update sub-category without comment
+PUT http://localhost:8000/api/categories/1/sub-categories/11
+Content-Type: application/json
+
+{
+  "name": "Test Sub-Category No Comment"
+}
+
+###
+
+### Update existing sub-category with new comment
+PUT http://localhost:8000/api/categories/1/sub-categories/10
+Content-Type: application/json
+
+{
+  "name": "Updated Sub-Category Name",
+  "comment": "Updated comment for this sub-category"
+}
+
+###
+
+### Create sub-category with null comment (should work)
+PUT http://localhost:8000/api/categories/1/sub-categories/12
+Content-Type: application/json
+
+{
+  "name": "Sub-Category with Null Comment",
+  "comment": null
+}
+
+###
+
+### Try to create sub-category for non-existent category (should return 404)
+PUT http://localhost:8000/api/categories/999/sub-categories/13
+Content-Type: application/json
+
+{
+  "name": "Test Sub-Category",
+  "comment": "This should fail"
+}
+
+###
+
 ### Get lines for category 1
 GET http://localhost:8000/api/categories/1/lines
 Accept: application/json

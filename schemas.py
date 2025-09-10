@@ -38,12 +38,18 @@ class Lines(LinesBase):
 class SubCategoryBase(BaseModel):
     name: str
     category_id: int
+    comment: Optional[str] = None
 
 class SubCategory(SubCategoryBase):
     id: int
     
     class Config:
         from_attributes = True
+
+# SubCategory creation/update schema
+class SubCategoryCreateUpdate(BaseModel):
+    name: str
+    comment: Optional[str] = None
 
 # ERP Table schemas
 class ERPTableBase(BaseModel):

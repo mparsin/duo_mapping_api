@@ -50,10 +50,47 @@ def test_root_endpoint_structure():
     except Exception as e:
         pytest.fail(f"Endpoint structure test failed: {e}")
 
+def test_subcategory_schema():
+    """Test that SubCategory schema includes comment field"""
+    try:
+        from schemas import SubCategory, SubCategoryCreateUpdate
+        
+        # Test SubCategory schema has comment field
+        schema_fields = SubCategory.model_fields
+        assert 'comment' in schema_fields, "SubCategory schema should have comment field"
+        
+        # Test SubCategoryCreateUpdate schema has comment field
+        create_schema_fields = SubCategoryCreateUpdate.model_fields
+        assert 'comment' in create_schema_fields, "SubCategoryCreateUpdate schema should have comment field"
+        
+        # Test that comment is optional
+        assert schema_fields['comment'].default is None, "Comment field should be optional"
+        assert create_schema_fields['comment'].default is None, "Comment field should be optional in create schema"
+        
+    except Exception as e:
+        pytest.fail(f"SubCategory schema test failed: {e}")
+
+def test_subcategory_database_model():
+    """Test that SubCategory database model includes comment field"""
+    try:
+        from database import SubCategory
+        
+        # Test that SubCategory model has comment attribute
+        assert hasattr(SubCategory, 'comment'), "SubCategory model should have comment attribute"
+        
+        # Test that comment column exists in the table definition
+        comment_column = getattr(SubCategory, 'comment')
+        assert comment_column is not None, "Comment column should exist"
+        
+    except Exception as e:
+        pytest.fail(f"SubCategory database model test failed: {e}")
+
 if __name__ == "__main__":
     print("Running basic API tests...")
     test_imports()
     test_app_creation() 
     test_lambda_handler()
     test_root_endpoint_structure()
+    test_subcategory_schema()
+    test_subcategory_database_model()
     print("✅ All tests passed!")

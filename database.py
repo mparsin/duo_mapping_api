@@ -54,6 +54,7 @@ class SubCategory(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(String, nullable=False)
     category_id = Column(Integer, ForeignKey("category.id"), nullable=False)
+    comment = Column(String(800))
     
     # Relationships
     category = relationship("Category", back_populates="sub_categories")
