@@ -20,6 +20,7 @@ class LinesBase(BaseModel):
     field_name: Optional[str] = None
     reason: Optional[str] = None
     name: str
+    comment: Optional[str] = None
     sub_category_id: Optional[int] = None
     table_id: Optional[int] = None
     column_id: Optional[int] = None
@@ -72,6 +73,7 @@ class ERPColumn(ERPColumnBase):
 class LineCreate(BaseModel):
     table_id: Optional[int] = None
     column_id: Optional[int] = None
+    comment: Optional[str] = None
 
 class LineResponse(BaseModel):
     id: int
@@ -80,6 +82,7 @@ class LineResponse(BaseModel):
     column_id: Optional[int] = None
     table_name: Optional[str] = None
     column_name: Optional[str] = None
+    comment: Optional[str] = None
     action: str  # "updated"
     
     class Config:

@@ -37,6 +37,7 @@ class Lines(Base):
     field_name = Column(String(200))
     reason = Column(String(800))
     name = Column(String(200), nullable=False)
+    comment = Column(String(800))
     sub_category_id = Column(Integer, ForeignKey("sub-category.id"))
     table_id = Column(Integer, ForeignKey("erp_table.id"))
     column_id = Column(Integer, ForeignKey("erp_column.id"))

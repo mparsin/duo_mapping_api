@@ -110,6 +110,7 @@ async def get_lines_by_category(category_id: int, db: Session = Depends(get_db))
             "field_name": line.field_name,
             "reason": line.reason,
             "name": line.name,
+            "comment": line.comment,
             "sub_category_id": line.sub_category_id,
             "table_id": line.table_id,
             "column_id": line.column_id,
@@ -139,11 +140,15 @@ async def get_erp_columns_by_table(table_id: int, db: Session = Depends(get_db))
 
 @api_router.patch("/lines/{line_id}", response_model=LineResponse)
 async def update_line(line_id: int, line_data: LineCreate, db: Session = Depends(get_db)):
-    """Update existing line by ID with new table_id and optionally column_id"""
+    """Update existing line by ID with new table_id, optionally column_id, and optionally comment"""
     # Find the line by ID
     existing_line = db.query(Lines).filter(Lines.id == line_id).first()
     if not existing_line:
         raise HTTPException(status_code=404, detail="Line not found")
+    
+    # Handle comment update (can be done independently of table/column updates)
+    if line_data.comment is not None:
+        existing_line.comment = line_data.comment
     
     # Handle table_id clearing logic
     if line_data.table_id is None or line_data.table_id == 0:
@@ -168,6 +173,7 @@ async def update_line(line_id: int, line_data: LineCreate, db: Session = Depends
             "column_id": updated_line.column_id,
             "table_name": updated_line.erp_table.name if updated_line.erp_table else None,
             "column_name": updated_line.erp_column.name if updated_line.erp_column else None,
+            "comment": updated_line.comment,
             "action": "cleared_table_id"
         }
     
@@ -220,6 +226,7 @@ async def update_line(line_id: int, line_data: LineCreate, db: Session = Depends
         "column_id": updated_line.column_id,
         "table_name": updated_line.erp_table.name if updated_line.erp_table else None,
         "column_name": updated_line.erp_column.name if updated_line.erp_column else None,
+        "comment": updated_line.comment,
         "action": action
     }
 

@@ -122,6 +122,28 @@ Content-Type: application/json
 
 ###
 
+### Update line with ID 1 including comment
+PATCH http://localhost:8000/api/lines/1
+Content-Type: application/json
+
+{
+  "table_id": 1,
+  "column_id": 1,
+  "comment": "This is a test comment for the mapping"
+}
+
+###
+
+### Update line with only comment (no table/column changes)
+PATCH http://localhost:8000/api/lines/1
+Content-Type: application/json
+
+{
+  "comment": "Updated comment only"
+}
+
+###
+
 ### Update non-existent line with ID 999 (should return 404)
 PATCH http://localhost:8000/api/lines/999
 Content-Type: application/json
