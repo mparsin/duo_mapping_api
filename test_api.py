@@ -53,19 +53,23 @@ def test_root_endpoint_structure():
 def test_subcategory_schema():
     """Test that SubCategory schema includes comment field"""
     try:
-        from schemas import SubCategory, SubCategoryCreateUpdate
+        from schemas import SubCategory, SubCategoryUpdate
         
         # Test SubCategory schema has comment field
         schema_fields = SubCategory.model_fields
         assert 'comment' in schema_fields, "SubCategory schema should have comment field"
         
-        # Test SubCategoryCreateUpdate schema has comment field
-        create_schema_fields = SubCategoryCreateUpdate.model_fields
-        assert 'comment' in create_schema_fields, "SubCategoryCreateUpdate schema should have comment field"
+        # Test SubCategoryUpdate schema has comment field
+        update_schema_fields = SubCategoryUpdate.model_fields
+        assert 'comment' in update_schema_fields, "SubCategoryUpdate schema should have comment field"
         
         # Test that comment is optional
         assert schema_fields['comment'].default is None, "Comment field should be optional"
-        assert create_schema_fields['comment'].default is None, "Comment field should be optional in create schema"
+        assert update_schema_fields['comment'].default is None, "Comment field should be optional in update schema"
+        
+        # Test that SubCategoryUpdate only has comment field (name is not editable)
+        assert len(update_schema_fields) == 1, "SubCategoryUpdate should only have comment field"
+        assert 'name' not in update_schema_fields, "SubCategoryUpdate should not have name field (not editable)"
         
     except Exception as e:
         pytest.fail(f"SubCategory schema test failed: {e}")
