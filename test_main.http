@@ -81,6 +81,24 @@ Accept: application/json
 
 ###
 
+### Get specific sub-category by ID
+GET http://localhost:8000/api/categories/1/sub-categories/1
+Accept: application/json
+
+###
+
+### Get non-existent sub-category (should return 404)
+GET http://localhost:8000/api/categories/1/sub-categories/999
+Accept: application/json
+
+###
+
+### Get sub-category from non-existent category (should return 404)
+GET http://localhost:8000/api/categories/999/sub-categories/1
+Accept: application/json
+
+###
+
 ### Create or update sub-category with comment
 PUT http://localhost:8000/api/categories/1/sub-categories/10
 Content-Type: application/json

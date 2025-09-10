@@ -84,6 +84,25 @@ async def get_sub_categories_by_category(category_id: int, db: Session = Depends
     sub_categories = db.query(SubCategory).filter(SubCategory.category_id == category_id).order_by(SubCategory.id).all()
     return sub_categories
 
+@api_router.get("/categories/{category_id}/sub-categories/{sub_category_id}", response_model=SubCategorySchema)
+async def get_sub_category(category_id: int, sub_category_id: int, db: Session = Depends(get_db)):
+    """Get a specific sub-category by ID within a category"""
+    # Check if category exists
+    category = db.query(Category).filter(Category.id == category_id).first()
+    if not category:
+        raise HTTPException(status_code=404, detail="Category not found")
+    
+    # Query the specific sub-category
+    sub_category = db.query(SubCategory).filter(
+        SubCategory.id == sub_category_id,
+        SubCategory.category_id == category_id
+    ).first()
+    
+    if not sub_category:
+        raise HTTPException(status_code=404, detail="Sub-category not found")
+    
+    return sub_category
+
 @api_router.put("/categories/{category_id}/sub-categories/{sub_category_id}", response_model=SubCategorySchema)
 async def create_or_update_sub_category(
     category_id: int, 
