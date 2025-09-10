@@ -60,14 +60,8 @@ jobs:
         # Create temp directory for package
         mkdir -p package
         
-        # Install dependencies
-        pip install --platform linux_x86_64 \
-                   --target package \
-                   --implementation cp \
-                   --python-version 3.11 \
-                   --only-binary=:all: \
-                   --upgrade \
-                   -r requirements.txt
+        # Install dependencies directly (we're already on Linux)
+        pip install --target package --upgrade -r requirements.txt
         
         # Copy application files
         cp main.py database.py schemas.py lambda_function.py package/
