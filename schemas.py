@@ -46,9 +46,8 @@ class SubCategory(SubCategoryBase):
     class Config:
         from_attributes = True
 
-# SubCategory creation/update schema
-class SubCategoryCreateUpdate(BaseModel):
-    name: str
+# SubCategory update schema (only comment is editable)
+class SubCategoryUpdate(BaseModel):
     comment: Optional[str] = None
 
 # ERP Table schemas

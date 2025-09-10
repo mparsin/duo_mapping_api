@@ -2,7 +2,7 @@ from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session, joinedload
 from database import get_db, Category, Lines, ERPTable, ERPColumn, SubCategory
-from schemas import Category as CategorySchema, Lines as LinesSchema, ERPTable as ERPTableSchema, ERPColumn as ERPColumnSchema, LineCreate, LineResponse, SubCategory as SubCategorySchema, SubCategoryCreateUpdate, ColumnSearchResult, TableMatchRequest, TableMatchResult
+from schemas import Category as CategorySchema, Lines as LinesSchema, ERPTable as ERPTableSchema, ERPColumn as ERPColumnSchema, LineCreate, LineResponse, SubCategory as SubCategorySchema, SubCategoryUpdate, ColumnSearchResult, TableMatchRequest, TableMatchResult
 from typing import List
 from sqlalchemy import func
 
@@ -104,53 +104,34 @@ async def get_sub_category(category_id: int, sub_category_id: int, db: Session =
     return sub_category
 
 @api_router.patch("/categories/{category_id}/sub-categories/{sub_category_id}", response_model=SubCategorySchema)
-async def create_or_update_sub_category(
+async def update_sub_category_comment(
     category_id: int, 
     sub_category_id: int, 
-    sub_category_data: SubCategoryCreateUpdate, 
+    sub_category_data: SubCategoryUpdate, 
     db: Session = Depends(get_db)
 ):
-    """Create or update a sub-category with the specified ID"""
+    """Update a sub-category's comment (name is not editable)"""
     # Check if category exists
     category = db.query(Category).filter(Category.id == category_id).first()
     if not category:
         raise HTTPException(status_code=404, detail="Category not found")
     
-    # Check if sub-category already exists
+    # Check if sub-category exists
     existing_sub_category = db.query(SubCategory).filter(
         SubCategory.id == sub_category_id,
         SubCategory.category_id == category_id
     ).first()
     
-    if existing_sub_category:
-        # Update existing sub-category
-        existing_sub_category.name = sub_category_data.name
-        if sub_category_data.comment is not None:
-            existing_sub_category.comment = sub_category_data.comment
-        
-        db.commit()
-        db.refresh(existing_sub_category)
-        return existing_sub_category
-    else:
-        # Create new sub-category with specified ID
-        new_sub_category = SubCategory(
-            id=sub_category_id,
-            name=sub_category_data.name,
-            category_id=category_id,
-            comment=sub_category_data.comment
-        )
-        
-        try:
-            db.add(new_sub_category)
-            db.commit()
-            db.refresh(new_sub_category)
-            return new_sub_category
-        except Exception as e:
-            db.rollback()
-            # If the ID already exists but with different category_id, raise error
-            if "duplicate key value" in str(e).lower():
-                raise HTTPException(status_code=400, detail=f"Sub-category with ID {sub_category_id} already exists in a different category")
-            raise HTTPException(status_code=500, detail="Failed to create sub-category")
+    if not existing_sub_category:
+        raise HTTPException(status_code=404, detail="Sub-category not found")
+    
+    # Update the comment field only
+    if sub_category_data.comment is not None:
+        existing_sub_category.comment = sub_category_data.comment
+    
+    db.commit()
+    db.refresh(existing_sub_category)
+    return existing_sub_category
 
 @api_router.get("/categories/{category_id}/lines", response_model=List[LinesSchema])
 async def get_lines_by_category(category_id: int, db: Session = Depends(get_db)):
