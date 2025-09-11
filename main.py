@@ -105,6 +105,10 @@ def generate_mapped_schema(db: Session) -> Dict[str, Any]:
                 "comment": column.comment
             }
             
+            # Add description field if reason is not null
+            if line.reason is not None and line.reason.strip():
+                column_entry["description"] = line.reason
+            
             tables_dict[table_name]["columns"][column_name] = column_entry
     
     # Convert to final format (list of tables with columns as list)
