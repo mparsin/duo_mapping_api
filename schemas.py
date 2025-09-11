@@ -69,6 +69,10 @@ class ERPColumnBase(BaseModel):
     comment: Optional[str] = None
     type: Optional[str] = None
     table_id: Optional[int] = None
+    not_null: Optional[bool] = False
+    primary_key: Optional[bool] = False
+    unique: Optional[bool] = False
+    default: Optional[str] = None
 
 class ERPColumn(ERPColumnBase):
     id: int

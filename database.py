@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, Integer, String, BigInteger, ForeignKey, Float
+from sqlalchemy import create_engine, Column, Integer, String, BigInteger, ForeignKey, Float, Boolean
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 import os
@@ -81,6 +81,10 @@ class ERPColumn(Base):
     comment = Column(String(800))
     type = Column(String(200))
     table_id = Column(Integer, ForeignKey("erp_table.id"))
+    not_null = Column(Boolean, default=False)
+    primary_key = Column(Boolean, default=False)
+    unique = Column(Boolean, default=False)
+    default = Column(String(100), default=None)
     
     # Relationships
     erp_table = relationship("ERPTable", back_populates="columns")

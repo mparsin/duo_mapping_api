@@ -92,19 +92,16 @@ def generate_mapped_schema(db: Session) -> Dict[str, Any]:
         # Add column if not already added (avoid duplicates)
         column_name = column.name
         if column_name not in tables_dict[table_name]["columns"]:
-            # Create column entry with available data
+            # Create column entry with available data including constraints
             column_entry = {
                 "name": column_name,
                 "type": column.type or "unknown",
                 "constraints": {
-                    "not_null": None,  # Not available in current schema
-                    "primary_key": None,  # Not available in current schema
-                    "unique": None,  # Not available in current schema
-                    "default": None,  # Not available in current schema
-                    "check": None,  # Not available in current schema
-                    "references": None  # Not available in current schema
+                    "not_null": column.not_null if column.not_null is not None else False,
+                    "primary_key": column.primary_key if column.primary_key is not None else False,
+                    "unique": column.unique if column.unique is not None else False,
+                    "default": column.default
                 },
-                "sequence": None,  # Not available in current schema
                 "comment": column.comment
             }
             
