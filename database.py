@@ -22,6 +22,7 @@ class Category(Base):
     Name = Column(String(200), nullable=False)
     percent_mapped = Column(Float, default=0.0)
     tab = Column(String(200), nullable=True)
+    seq_no = Column(Integer, nullable=True)
     
     # Relationships
     lines = relationship("Lines", back_populates="category")

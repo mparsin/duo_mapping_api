@@ -137,8 +137,8 @@ async def root():
 # API endpoints with /api prefix
 @api_router.get("/categories", response_model=List[CategorySchema])
 async def get_categories(db: Session = Depends(get_db)):
-    """Get all categories ordered by ID"""
-    categories = db.query(Category).order_by(Category.id).all()
+    """Get all categories ordered by seq_no"""
+    categories = db.query(Category).order_by(Category.seq_no).all()
     return categories
 
 @api_router.get("/categories/{category_id}", response_model=CategorySchema)

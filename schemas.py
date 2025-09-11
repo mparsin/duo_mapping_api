@@ -9,6 +9,7 @@ class Category(CategoryBase):
     id: int
     percent_mapped: float = 0.0
     tab: Optional[str] = None
+    seq_no: Optional[int] = None
     
     class Config:
         from_attributes = True
