@@ -148,14 +148,14 @@ async def get_category(category_id: int, db: Session = Depends(get_db)):
 
 @api_router.get("/categories/{category_id}/sub-categories", response_model=List[SubCategorySchema])
 async def get_sub_categories_by_category(category_id: int, db: Session = Depends(get_db)):
-    """Get all sub-categories for a specific category ordered by sub-category ID"""
+    """Get all sub-categories for a specific category ordered by seq_no (fallback to ID when seq_no is null)"""
     # Check if category exists
     category = db.query(Category).filter(Category.id == category_id).first()
     if not category:
         raise HTTPException(status_code=404, detail="Category not found")
     
-    # Query sub-categories for the category ordered by ID
-    sub_categories = db.query(SubCategory).filter(SubCategory.category_id == category_id).order_by(SubCategory.id).all()
+    # Query sub-categories for the category ordered by seq_no (nulls last), then by ID
+    sub_categories = db.query(SubCategory).filter(SubCategory.category_id == category_id).order_by(SubCategory.seq_no.nulls_last(), SubCategory.id).all()
     return sub_categories
 
 @api_router.get("/categories/{category_id}/sub-categories/{sub_category_id}", response_model=SubCategorySchema)

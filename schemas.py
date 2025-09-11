@@ -41,6 +41,7 @@ class SubCategoryBase(BaseModel):
     name: str
     category_id: int
     comment: Optional[str] = None
+    seq_no: Optional[int] = None
 
 class SubCategory(SubCategoryBase):
     id: int
