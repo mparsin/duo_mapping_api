@@ -8,6 +8,7 @@ class CategoryBase(BaseModel):
 class Category(CategoryBase):
     id: int
     percent_mapped: float = 0.0
+    tab: Optional[str] = None
     
     class Config:
         from_attributes = True
