@@ -66,7 +66,9 @@ def generate_mapped_schema(db: Session) -> Dict[str, Any]:
         Lines.column_id.isnot(None)
     ).options(
         joinedload(Lines.erp_table),
-        joinedload(Lines.erp_column)
+        joinedload(Lines.erp_column),
+        joinedload(Lines.category),
+        joinedload(Lines.sub_category)
     ).all()
     
     # Group mapped columns by table
@@ -102,7 +104,9 @@ def generate_mapped_schema(db: Session) -> Dict[str, Any]:
                     "unique": column.unique if column.unique is not None else False,
                     "default": column.default
                 },
-                "comment": column.comment
+                "comment": column.comment,
+                "category": line.category.Name if line.category else None,
+                "sub_category": line.sub_category.name if line.sub_category else None
             }
             
             # Add description field if reason is not null
