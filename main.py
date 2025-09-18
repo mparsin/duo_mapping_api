@@ -21,7 +21,79 @@ from sqlalchemy import func
 import json
 from datetime import datetime
 
-app = FastAPI(title="Duo Mapping API", version="1.0.0")
+# OpenAPI documentation configuration
+app = FastAPI(
+    title="Duo Mapping API",
+    version="1.0.0",
+    description="""
+    ## Duo Mapping API
+
+    A comprehensive API for managing ERP table and column mappings for data transformation workflows.
+    
+    ### Features
+    
+    * **Category Management**: Organize mappings by categories and sub-categories
+    * **Line Mappings**: Map data fields to ERP tables and columns
+    * **Table & Column Search**: Search and discover ERP schema elements
+    * **Schema Generation**: Export mapped schemas for implementation
+    * **Progress Tracking**: Monitor mapping completion percentages
+    
+    ### API Organization
+    
+    All endpoints are prefixed with `/api` and organized by functional area:
+    
+    * **Categories**: Manage mapping categories and sub-categories
+    * **Lines**: Handle individual field mappings
+    * **Tables & Columns**: ERP schema discovery and search
+    * **Schema Export**: Generate implementation-ready schemas
+    * **Utilities**: Health checks and maintenance operations
+    """,
+    contact={
+        "name": "API Support",
+        "email": "support@redzone.com",
+    },
+    license_info={
+        "name": "Private",
+    },
+    openapi_tags=[
+        {
+            "name": "Root",
+            "description": "Basic API information and health checks"
+        },
+        {
+            "name": "Categories", 
+            "description": "Operations for managing mapping categories and their completion tracking"
+        },
+        {
+            "name": "Sub-Categories",
+            "description": "Operations for managing category subdivisions and their metadata"
+        },
+        {
+            "name": "Lines",
+            "description": "Operations for managing individual field mappings to ERP tables and columns"
+        },
+        {
+            "name": "Tables",
+            "description": "Operations for discovering and working with ERP table structures"
+        },
+        {
+            "name": "Columns", 
+            "description": "Operations for searching and working with ERP column definitions"
+        },
+        {
+            "name": "Search",
+            "description": "Advanced search operations for finding optimal table and column matches"
+        },
+        {
+            "name": "Schema Export",
+            "description": "Operations for generating and downloading implementation-ready schemas"
+        },
+        {
+            "name": "Utilities",
+            "description": "System maintenance and health monitoring operations"
+        }
+    ]
+)
 
 # Configure CORS - Update this section
 app.add_middleware(
@@ -147,28 +219,157 @@ def generate_mapped_schema(db: Session) -> Dict[str, Any]:
         "total_mapped_columns": sum(len(table["columns"]) for table in tables_list)
     }
 
-@app.get("/")
+@app.get(
+    "/",
+    tags=["Root"],
+    summary="API Root Endpoint",
+    description="Returns basic API status and welcome message",
+    responses={
+        200: {
+            "description": "API is running successfully",
+            "content": {
+                "application/json": {
+                    "example": {"message": "Duo Mapping API is running"}
+                }
+            }
+        }
+    }
+)
 async def root():
+    """
+    **Welcome endpoint for the Duo Mapping API**
+    
+    This endpoint provides a simple health check and confirms the API is operational.
+    Use this to verify the service is running before making other API calls.
+    """
     return {"message": "Duo Mapping API is running"}
 
 # API endpoints with /api prefix
-@api_router.get("/categories", response_model=List[CategorySchema])
+@api_router.get(
+    "/categories",
+    response_model=List[CategorySchema],
+    tags=["Categories"],
+    summary="Get All Categories",
+    description="Retrieve all mapping categories with their completion percentages",
+    responses={
+        200: {
+            "description": "List of categories successfully retrieved",
+            "content": {
+                "application/json": {
+                    "example": [
+                        {
+                            "id": 1,
+                            "Name": "Customer Data",
+                            "percent_mapped": 75.5,
+                            "tab": "customers",
+                            "seq_no": 1,
+                            "epic": "Data Migration"
+                        }
+                    ]
+                }
+            }
+        }
+    }
+)
 async def get_categories(db: Session = Depends(get_db)):
-    """Get all categories ordered by seq_no"""
+    """
+    **Retrieve all mapping categories**
+    
+    Returns a list of all categories ordered by sequence number, including:
+    - Category ID and name
+    - Mapping completion percentage
+    - Associated tab and epic information
+    - Sequence ordering
+    """
     categories = db.query(Category).order_by(Category.seq_no).all()
     return categories
 
-@api_router.get("/categories/{category_id}", response_model=CategorySchema)
+@api_router.get(
+    "/categories/{category_id}",
+    response_model=CategorySchema,
+    tags=["Categories"],
+    summary="Get Category by ID",
+    description="Retrieve a specific category by its unique identifier",
+    responses={
+        200: {
+            "description": "Category successfully retrieved",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "id": 1,
+                        "Name": "Customer Data",
+                        "percent_mapped": 75.5,
+                        "tab": "customers",
+                        "seq_no": 1,
+                        "epic": "Data Migration"
+                    }
+                }
+            }
+        },
+        404: {
+            "description": "Category not found",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Category not found"}
+                }
+            }
+        }
+    }
+)
 async def get_category(category_id: int, db: Session = Depends(get_db)):
-    """Get a specific category by ID"""
+    """
+    **Retrieve a specific category**
+    
+    Get detailed information about a single category including its mapping progress.
+    
+    - **category_id**: Unique identifier for the category
+    """
     category = db.query(Category).filter(Category.id == category_id).first()
     if not category:
         raise HTTPException(status_code=404, detail="Category not found")
     return category
 
-@api_router.get("/categories/{category_id}/sub-categories", response_model=List[SubCategorySchema])
+@api_router.get(
+    "/categories/{category_id}/sub-categories",
+    response_model=List[SubCategorySchema],
+    tags=["Sub-Categories"],
+    summary="Get Sub-Categories by Category",
+    description="Retrieve all sub-categories for a specific category",
+    responses={
+        200: {
+            "description": "Sub-categories successfully retrieved",
+            "content": {
+                "application/json": {
+                    "example": [
+                        {
+                            "id": 1,
+                            "name": "Personal Information",
+                            "category_id": 1,
+                            "comment": "Customer personal details",
+                            "seq_no": 1
+                        }
+                    ]
+                }
+            }
+        },
+        404: {
+            "description": "Category not found",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Category not found"}
+                }
+            }
+        }
+    }
+)
 async def get_sub_categories_by_category(category_id: int, db: Session = Depends(get_db)):
-    """Get all sub-categories for a specific category ordered by seq_no (fallback to ID when seq_no is null)"""
+    """
+    **Get all sub-categories for a category**
+    
+    Returns sub-categories ordered by sequence number (nulls last), then by ID.
+    
+    - **category_id**: Unique identifier for the parent category
+    """
     # Check if category exists
     category = db.query(Category).filter(Category.id == category_id).first()
     if not category:
@@ -180,9 +381,46 @@ async def get_sub_categories_by_category(category_id: int, db: Session = Depends
     ).order_by(SubCategory.seq_no.nulls_last(), SubCategory.id).all()
     return sub_categories
 
-@api_router.get("/categories/{category_id}/sub-categories/{sub_category_id}", response_model=SubCategorySchema)
+@api_router.get(
+    "/categories/{category_id}/sub-categories/{sub_category_id}",
+    response_model=SubCategorySchema,
+    tags=["Sub-Categories"],
+    summary="Get Sub-Category by ID",
+    description="Retrieve a specific sub-category within a category",
+    responses={
+        200: {
+            "description": "Sub-category successfully retrieved",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "id": 1,
+                        "name": "Personal Information",
+                        "category_id": 1,
+                        "comment": "Customer personal details",
+                        "seq_no": 1
+                    }
+                }
+            }
+        },
+        404: {
+            "description": "Category or sub-category not found",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Sub-category not found"}
+                }
+            }
+        }
+    }
+)
 async def get_sub_category(category_id: int, sub_category_id: int, db: Session = Depends(get_db)):
-    """Get a specific sub-category by ID within a category"""
+    """
+    **Get a specific sub-category**
+    
+    Retrieve detailed information about a single sub-category within its parent category.
+    
+    - **category_id**: Unique identifier for the parent category
+    - **sub_category_id**: Unique identifier for the sub-category
+    """
     # Check if category exists
     category = db.query(Category).filter(Category.id == category_id).first()
     if not category:
@@ -199,14 +437,52 @@ async def get_sub_category(category_id: int, sub_category_id: int, db: Session =
     
     return sub_category
 
-@api_router.patch("/categories/{category_id}/sub-categories/{sub_category_id}", response_model=SubCategorySchema)
+@api_router.patch(
+    "/categories/{category_id}/sub-categories/{sub_category_id}",
+    response_model=SubCategorySchema,
+    tags=["Sub-Categories"],
+    summary="Update Sub-Category Comment",
+    description="Update the comment field of a sub-category (name is not editable)",
+    responses={
+        200: {
+            "description": "Sub-category successfully updated",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "id": 1,
+                        "name": "Personal Information",
+                        "category_id": 1,
+                        "comment": "Updated customer personal details",
+                        "seq_no": 1
+                    }
+                }
+            }
+        },
+        404: {
+            "description": "Category or sub-category not found",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Sub-category not found"}
+                }
+            }
+        }
+    }
+)
 async def update_sub_category_comment(
     category_id: int,
     sub_category_id: int,
     sub_category_data: SubCategoryUpdate,
     db: Session = Depends(get_db)
 ):
-    """Update a sub-category's comment (name is not editable)"""
+    """
+    **Update sub-category comment**
+    
+    Updates only the comment field of a sub-category. The name field is read-only.
+    
+    - **category_id**: Unique identifier for the parent category
+    - **sub_category_id**: Unique identifier for the sub-category
+    - **sub_category_data**: Object containing the comment to update
+    """
     # Check if category exists
     category = db.query(Category).filter(Category.id == category_id).first()
     if not category:
@@ -229,9 +505,57 @@ async def update_sub_category_comment(
     db.refresh(existing_sub_category)
     return existing_sub_category
 
-@api_router.get("/categories/{category_id}/lines", response_model=List[LinesSchema])
+@api_router.get(
+    "/categories/{category_id}/lines",
+    response_model=List[LinesSchema],
+    tags=["Lines"],
+    summary="Get Lines by Category",
+    description="Retrieve all mapping lines for a specific category with table and column information",
+    responses={
+        200: {
+            "description": "Lines successfully retrieved",
+            "content": {
+                "application/json": {
+                    "example": [
+                        {
+                            "id": 1,
+                            "categoryid": 1,
+                            "default": "John Doe",
+                            "customer_settings": "required",
+                            "no_of_chars": "50",
+                            "field_name": "customer_name",
+                            "reason": "Primary customer identifier",
+                            "name": "Customer Name",
+                            "comment": "Full customer name",
+                            "sub_category_id": 1,
+                            "table_id": 5,
+                            "column_id": 23,
+                            "table_name": "customers",
+                            "column_name": "full_name"
+                        }
+                    ]
+                }
+            }
+        },
+        404: {
+            "description": "Category not found",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Category not found"}
+                }
+            }
+        }
+    }
+)
 async def get_lines_by_category(category_id: int, db: Session = Depends(get_db)):
-    """Get all lines for a specific category with table and column names"""
+    """
+    **Get all mapping lines for a category**
+    
+    Returns all lines (field mappings) for a specific category, including their
+    mapped ERP table and column information.
+    
+    - **category_id**: Unique identifier for the category
+    """
     # Check if category exists
     category = db.query(Category).filter(Category.id == category_id).first()
     if not category:
@@ -266,15 +590,90 @@ async def get_lines_by_category(category_id: int, db: Session = Depends(get_db))
     
     return result
 
-@api_router.get("/tables", response_model=List[ERPTableSchema])
+@api_router.get(
+    "/tables",
+    response_model=List[ERPTableSchema],
+    tags=["Tables"],
+    summary="Get All ERP Tables",
+    description="Retrieve all available ERP tables in the system",
+    responses={
+        200: {
+            "description": "ERP tables successfully retrieved",
+            "content": {
+                "application/json": {
+                    "example": [
+                        {
+                            "id": 1,
+                            "name": "customers",
+                            "description": "Customer master data table"
+                        },
+                        {
+                            "id": 2,
+                            "name": "orders",
+                            "description": "Sales order transactions"
+                        }
+                    ]
+                }
+            }
+        }
+    }
+)
 async def get_erp_tables(db: Session = Depends(get_db)):
-    """Get all ERP tables"""
+    """
+    **Get all ERP tables**
+    
+    Returns a complete list of all ERP tables available for mapping.
+    These tables represent the target schema for data transformations.
+    """
     erp_tables = db.query(ERPTable).all()
     return erp_tables
 
-@api_router.get("/tables/{table_id}/columns", response_model=List[ERPColumnSchema])
+@api_router.get(
+    "/tables/{table_id}/columns",
+    response_model=List[ERPColumnSchema],
+    tags=["Columns"],
+    summary="Get Columns by Table",
+    description="Retrieve all columns for a specific ERP table",
+    responses={
+        200: {
+            "description": "Table columns successfully retrieved",
+            "content": {
+                "application/json": {
+                    "example": [
+                        {
+                            "id": 1,
+                            "name": "customer_id",
+                            "comment": "Unique customer identifier",
+                            "type": "integer",
+                            "table_id": 1,
+                            "not_null": True,
+                            "primary_key": True,
+                            "unique": True,
+                            "default": None
+                        }
+                    ]
+                }
+            }
+        },
+        404: {
+            "description": "ERP table not found",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "ERP table not found"}
+                }
+            }
+        }
+    }
+)
 async def get_erp_columns_by_table(table_id: int, db: Session = Depends(get_db)):
-    """Get all columns for a specific ERP table"""
+    """
+    **Get all columns for an ERP table**
+    
+    Returns detailed information about all columns in a specific ERP table,
+    including data types, constraints, and metadata.
+    
+    - **table_id**: Unique identifier for the ERP table
+    """
     # Check if table exists
     erp_table = db.query(ERPTable).filter(ERPTable.id == table_id).first()
     if not erp_table:
@@ -283,9 +682,62 @@ async def get_erp_columns_by_table(table_id: int, db: Session = Depends(get_db))
     columns = db.query(ERPColumn).filter(ERPColumn.table_id == table_id).all()
     return columns
 
-@api_router.patch("/lines/{line_id}", response_model=LineResponse)
+@api_router.patch(
+    "/lines/{line_id}",
+    response_model=LineResponse,
+    tags=["Lines"],
+    summary="Update Line Mapping",
+    description="Update an existing line mapping with new table/column assignments and comments",
+    responses={
+        200: {
+            "description": "Line successfully updated",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "id": 1,
+                        "categoryid": 1,
+                        "table_id": 5,
+                        "column_id": 23,
+                        "table_name": "customers",
+                        "column_name": "full_name",
+                        "comment": "Updated mapping comment",
+                        "action": "updated"
+                    }
+                }
+            }
+        },
+        404: {
+            "description": "Line, table, or column not found",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Line not found"}
+                }
+            }
+        },
+        400: {
+            "description": "Invalid mapping (column doesn't belong to table)",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Column does not belong to the specified table"}
+                }
+            }
+        }
+    }
+)
 async def update_line(line_id: int, line_data: LineCreate, db: Session = Depends(get_db)):
-    """Update existing line by ID with new table_id, optionally column_id, and optionally comment"""
+    """
+    **Update line mapping**
+    
+    Updates an existing line with new table/column mappings and comments.
+    
+    - **line_id**: Unique identifier for the line to update
+    - **line_data**: Update data (table_id, column_id, comment)
+    
+    Special behaviors:
+    - Setting table_id to null/0 clears both table and column mappings
+    - Setting column_id to 0 clears only the column mapping
+    - Validates that columns belong to the specified table
+    """
     # Find the line by ID
     existing_line = db.query(Lines).filter(Lines.id == line_id).first()
     if not existing_line:
@@ -375,9 +827,56 @@ async def update_line(line_id: int, line_data: LineCreate, db: Session = Depends
         "action": action
     }
 
-@api_router.get("/search-columns", response_model=List[ColumnSearchResult])
+@api_router.get(
+    "/search-columns",
+    response_model=List[ColumnSearchResult],
+    tags=["Search"],
+    summary="Search Columns by Name",
+    description="Search through all ERP columns by name, returning exact matches first, then partial matches",
+    responses={
+        200: {
+            "description": "Column search results",
+            "content": {
+                "application/json": {
+                    "example": [
+                        {
+                            "column_name": "customer_name",
+                            "table_name": "customers",
+                            "column_id": 23,
+                            "table_id": 5,
+                            "match_type": "exact"
+                        },
+                        {
+                            "column_name": "customer_full_name",
+                            "table_name": "customer_details",
+                            "column_id": 45,
+                            "table_id": 12,
+                            "match_type": "partial"
+                        }
+                    ]
+                }
+            }
+        },
+        400: {
+            "description": "Invalid search parameter",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "columnName parameter is required and cannot be empty"}
+                }
+            }
+        }
+    }
+)
 async def search_columns(columnName: str, db: Session = Depends(get_db)):
-    """Search through all columns by name, returning exact matches first, then partial matches"""
+    """
+    **Search columns by name**
+    
+    Searches through all ERP columns by name, returning results in order of relevance:
+    1. Exact matches (case-insensitive)
+    2. Partial matches (contains search term)
+    
+    - **columnName**: The column name to search for
+    """
     if not columnName or not columnName.strip():
         raise HTTPException(status_code=400, detail="columnName parameter is required and cannot be empty")
     
@@ -415,9 +914,56 @@ async def search_columns(columnName: str, db: Session = Depends(get_db)):
     # Return exact matches first, then partial matches
     return exact_matches + partial_matches
 
-@api_router.post("/find-table-matches", response_model=List[TableMatchResult])
+@api_router.post(
+    "/find-table-matches",
+    response_model=List[TableMatchResult],
+    tags=["Search"],
+    summary="Find Table Matches",
+    description="Find tables with the most column matches from a list of column names",
+    responses={
+        200: {
+            "description": "Table match results ordered by match count",
+            "content": {
+                "application/json": {
+                    "example": [
+                        {
+                            "table_id": 5,
+                            "table_name": "customers",
+                            "match_count": 3,
+                            "matched_columns": ["customer_name", "email", "phone"]
+                        },
+                        {
+                            "table_id": 12,
+                            "table_name": "customer_details",
+                            "match_count": 2,
+                            "matched_columns": ["customer_name", "email"]
+                        }
+                    ]
+                }
+            }
+        },
+        400: {
+            "description": "Invalid request data",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "column_names list cannot be empty"}
+                }
+            }
+        }
+    }
+)
 async def find_table_matches(request: TableMatchRequest, db: Session = Depends(get_db)):
-    """Find tables with the most column matches from a list of column names"""
+    """
+    **Find optimal table matches**
+    
+    Analyzes a list of column names and finds ERP tables with the most matching columns.
+    Results are ordered by match count (descending) then by table name (ascending).
+    
+    This is useful for discovering the best target tables when you have a set of
+    source field names that need to be mapped.
+    
+    - **request**: Object containing the list of column names to match
+    """
     if not request.column_names or len(request.column_names) == 0:
         raise HTTPException(status_code=400, detail="column_names list cannot be empty")
     
@@ -459,9 +1005,35 @@ async def find_table_matches(request: TableMatchRequest, db: Session = Depends(g
     
     return table_matches
 
-@api_router.post("/categories/recalculate-percent-mapped")
+@api_router.post(
+    "/categories/recalculate-percent-mapped",
+    tags=["Utilities"],
+    summary="Recalculate Mapping Percentages",
+    description="Recalculate percent_mapped for all categories based on current line mappings",
+    responses={
+        200: {
+            "description": "Percentages successfully recalculated",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "message": "Successfully recalculated percent_mapped for 15 categories",
+                        "updated_count": 15
+                    }
+                }
+            }
+        }
+    }
+)
 async def recalculate_all_percent_mapped(db: Session = Depends(get_db)):
-    """Recalculate percent_mapped for all categories"""
+    """
+    **Recalculate mapping completion percentages**
+    
+    Updates the percent_mapped field for all categories based on their current
+    line mappings. This is useful for maintenance after bulk updates or data imports.
+    
+    The percentage is calculated as:
+    (mapped_lines_with_field_name / total_lines_with_field_name) * 100
+    """
     categories = db.query(Category).all()
     updated_count = 0
     
@@ -474,14 +1046,100 @@ async def recalculate_all_percent_mapped(db: Session = Depends(get_db)):
         "updated_count": updated_count
     }
 
-@api_router.get("/health")
+@api_router.get(
+    "/health",
+    tags=["Utilities"],
+    summary="Health Check",
+    description="Simple health check to verify API availability",
+    responses={
+        200: {
+            "description": "API is healthy and operational",
+            "content": {
+                "application/json": {
+                    "example": {"status": "healthy"}
+                }
+            }
+        }
+    }
+)
 async def health_check():
-    """Health check endpoint"""
+    """
+    **API health check**
+    
+    Simple endpoint to verify the API is running and operational.
+    Use this for monitoring and load balancer health checks.
+    """
     return {"status": "healthy"}
 
-@api_router.get("/download-schema")
+@api_router.get(
+    "/download-schema",
+    tags=["Schema Export"],
+    summary="Download Mapped Schema",
+    description="Generate and download a JSON schema file containing only mapped tables and columns",
+    responses={
+        200: {
+            "description": "Schema file successfully generated and downloaded",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "tables": [
+                            {
+                                "name": "customers",
+                                "description": "Customer master data table",
+                                "columns": [
+                                    {
+                                        "name": "customer_name",
+                                        "type": "varchar",
+                                        "constraints": {
+                                            "not_null": True,
+                                            "primary_key": False,
+                                            "unique": False,
+                                            "default": None
+                                        },
+                                        "comment": "Customer full name",
+                                        "category": "Customer Data",
+                                        "sub_category": "Personal Information",
+                                        "description": "Primary customer identifier"
+                                    }
+                                ]
+                            }
+                        ],
+                        "generated_at": "2024-01-15T10:30:00Z",
+                        "total_tables": 1,
+                        "total_mapped_columns": 1
+                    }
+                }
+            },
+            "headers": {
+                "Content-Disposition": "attachment; filename=mapped_schema_20240115_103000.json",
+                "Content-Type": "application/json"
+            }
+        },
+        500: {
+            "description": "Error generating schema",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Error generating schema: Database connection failed"}
+                }
+            }
+        }
+    }
+)
 async def download_schema(db: Session = Depends(get_db)):
-    """Generate and download schema file containing only mapped tables and columns"""
+    """
+    **Download implementation-ready schema**
+    
+    Generates and downloads a JSON file containing only tables and columns that
+    have active mappings. This schema can be used for implementation and includes:
+    
+    - Table and column metadata
+    - Data type information
+    - Constraint details
+    - Mapping context (category, sub-category)
+    - Custom descriptions from mapping reasons
+    
+    The file is automatically named with a timestamp for version tracking.
+    """
     try:
         # Generate the schema
         schema_data = generate_mapped_schema(db)
