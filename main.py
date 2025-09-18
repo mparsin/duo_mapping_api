@@ -13,6 +13,7 @@ from schemas import (
     SubCategory as SubCategorySchema,
     SubCategoryUpdate,
     ColumnSearchResult,
+    CategoryMappingInfo,
     TableMatchRequest,
     TableMatchResult
 )
@@ -832,10 +833,10 @@ async def update_line(line_id: int, line_data: LineCreate, db: Session = Depends
     response_model=List[ColumnSearchResult],
     tags=["Search"],
     summary="Search Columns by Name",
-    description="Search through all ERP columns by name, returning exact matches first, then partial matches",
+    description="Search through all ERP columns by name, returning exact matches first, then partial matches. Includes information about which categories each column is mapped to.",
     responses={
         200: {
-            "description": "Column search results",
+            "description": "Column search results with mapping information",
             "content": {
                 "application/json": {
                     "example": [
@@ -844,14 +845,19 @@ async def update_line(line_id: int, line_data: LineCreate, db: Session = Depends
                             "table_name": "customers",
                             "column_id": 23,
                             "table_id": 5,
-                            "match_type": "exact"
+                            "match_type": "exact",
+                            "mapped_categories": [
+                                {"id": 1, "name": "Customer Data"},
+                                {"id": 2, "name": "Order Management"}
+                            ]
                         },
                         {
                             "column_name": "customer_full_name",
                             "table_name": "customer_details",
                             "column_id": 45,
                             "table_id": 12,
-                            "match_type": "partial"
+                            "match_type": "partial",
+                            "mapped_categories": []
                         }
                     ]
                 }
@@ -869,11 +875,14 @@ async def update_line(line_id: int, line_data: LineCreate, db: Session = Depends
 )
 async def search_columns(columnName: str, db: Session = Depends(get_db)):
     """
-    **Search columns by name**
+    **Search columns by name with mapping information**
     
     Searches through all ERP columns by name, returning results in order of relevance:
     1. Exact matches (case-insensitive)
     2. Partial matches (contains search term)
+    
+    For each matching column, also returns information about which categories
+    the column is mapped to (if any).
     
     - **columnName**: The column name to search for
     """
@@ -894,21 +903,35 @@ async def search_columns(columnName: str, db: Session = Depends(get_db)):
         
         # Check for exact match
         if column_name_lower == search_term:
+            # Get mapped categories for this column
+            mapped_categories = db.query(Category.id, Category.Name).join(Lines, Category.id == Lines.categoryid).filter(
+                Lines.column_id == column.id
+            ).distinct().all()
+            category_info = [CategoryMappingInfo(id=cat.id, name=cat.Name) for cat in mapped_categories]
+            
             exact_matches.append(ColumnSearchResult(
                 column_name=column.name,
                 table_name=table.name,
                 column_id=column.id,
                 table_id=table.id,
-                match_type="exact"
+                match_type="exact",
+                mapped_categories=category_info
             ))
         # Check for partial match (contains the search term)
         elif search_term in column_name_lower:
+            # Get mapped categories for this column
+            mapped_categories = db.query(Category.id, Category.Name).join(Lines, Category.id == Lines.categoryid).filter(
+                Lines.column_id == column.id
+            ).distinct().all()
+            category_info = [CategoryMappingInfo(id=cat.id, name=cat.Name) for cat in mapped_categories]
+            
             partial_matches.append(ColumnSearchResult(
                 column_name=column.name,
                 table_name=table.name,
                 column_id=column.id,
                 table_id=table.id,
-                match_type="partial"
+                match_type="partial",
+                mapped_categories=category_info
             ))
     
     # Return exact matches first, then partial matches

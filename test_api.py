@@ -148,6 +148,46 @@ def test_category_database_model_epic_field():
     except Exception as e:
         pytest.fail(f"Category database model epic field test failed: {e}")
 
+def test_column_search_result_schema():
+    """Test that ColumnSearchResult schema includes mapped_categories field with CategoryMappingInfo"""
+    try:
+        from schemas import ColumnSearchResult, CategoryMappingInfo
+        
+        # Test that ColumnSearchResult schema has mapped_categories field
+        schema_fields = ColumnSearchResult.model_fields
+        assert 'mapped_categories' in schema_fields, "ColumnSearchResult schema should have mapped_categories field"
+        
+        # Test that mapped_categories is a list of CategoryMappingInfo objects
+        mapped_categories_field = schema_fields['mapped_categories']
+        assert mapped_categories_field.default == [], "mapped_categories should default to empty list"
+        
+        # Test that the field type is List[CategoryMappingInfo]
+        from typing import get_origin, get_args
+        field_type = mapped_categories_field.annotation
+        assert get_origin(field_type) == list, "mapped_categories should be a list type"
+        assert get_args(field_type)[0] == CategoryMappingInfo, "mapped_categories should be a list of CategoryMappingInfo"
+        
+        # Test CategoryMappingInfo schema has id and name fields
+        category_info_fields = CategoryMappingInfo.model_fields
+        assert 'id' in category_info_fields, "CategoryMappingInfo should have id field"
+        assert 'name' in category_info_fields, "CategoryMappingInfo should have name field"
+        
+    except Exception as e:
+        pytest.fail(f"ColumnSearchResult schema test failed: {e}")
+
+def test_search_columns_endpoint_structure():
+    """Test that search columns endpoint exists and has correct structure"""
+    try:
+        from main import app
+        
+        # Test that the app has the search columns endpoint in its routes
+        routes = [route.path for route in app.routes]
+        search_route_exists = any('/api/search-columns' in route for route in routes)
+        assert search_route_exists, "Search columns endpoint should exist"
+        
+    except Exception as e:
+        pytest.fail(f"Search columns endpoint test failed: {e}")
+
 if __name__ == "__main__":
     print("Running basic API tests...")
     test_imports()
@@ -160,4 +200,6 @@ if __name__ == "__main__":
     test_download_schema_endpoint_structure()
     test_category_schema_epic_field()
     test_category_database_model_epic_field()
+    test_column_search_result_schema()
+    test_search_columns_endpoint_structure()
     print("✅ All tests passed!")

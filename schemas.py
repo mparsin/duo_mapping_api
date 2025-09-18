@@ -299,6 +299,22 @@ class LineResponse(BaseModel):
     class Config:
         from_attributes = True
 
+# Category mapping info schema
+class CategoryMappingInfo(BaseModel):
+    id: int = Field(
+        ...,
+        description="Unique category identifier",
+        example=1
+    )
+    name: str = Field(
+        ...,
+        description="Category name",
+        example="Customer Data"
+    )
+    
+    class Config:
+        from_attributes = True
+
 # Column search response schema
 class ColumnSearchResult(BaseModel):
     column_name: str = Field(
@@ -326,6 +342,14 @@ class ColumnSearchResult(BaseModel):
         description="Type of match found (exact or partial)",
         example="exact",
         pattern="^(exact|partial)$"
+    )
+    mapped_categories: List[CategoryMappingInfo] = Field(
+        default=[],
+        description="List of categories where this column is mapped, including ID and name",
+        example=[
+            {"id": 1, "name": "Customer Data"},
+            {"id": 2, "name": "Order Management"}
+        ]
     )
     
     class Config:
