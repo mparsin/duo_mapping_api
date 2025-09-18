@@ -3,7 +3,19 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session, joinedload
 from database import get_db, Category, Lines, ERPTable, ERPColumn, SubCategory
-from schemas import Category as CategorySchema, Lines as LinesSchema, ERPTable as ERPTableSchema, ERPColumn as ERPColumnSchema, LineCreate, LineResponse, SubCategory as SubCategorySchema, SubCategoryUpdate, ColumnSearchResult, TableMatchRequest, TableMatchResult
+from schemas import (
+    Category as CategorySchema,
+    Lines as LinesSchema,
+    ERPTable as ERPTableSchema,
+    ERPColumn as ERPColumnSchema,
+    LineCreate,
+    LineResponse,
+    SubCategory as SubCategorySchema,
+    SubCategoryUpdate,
+    ColumnSearchResult,
+    TableMatchRequest,
+    TableMatchResult
+)
 from typing import List, Dict, Any
 from sqlalchemy import func
 import json
@@ -163,7 +175,9 @@ async def get_sub_categories_by_category(category_id: int, db: Session = Depends
         raise HTTPException(status_code=404, detail="Category not found")
     
     # Query sub-categories for the category ordered by seq_no (nulls last), then by ID
-    sub_categories = db.query(SubCategory).filter(SubCategory.category_id == category_id).order_by(SubCategory.seq_no.nulls_last(), SubCategory.id).all()
+    sub_categories = db.query(SubCategory).filter(
+        SubCategory.category_id == category_id
+    ).order_by(SubCategory.seq_no.nulls_last(), SubCategory.id).all()
     return sub_categories
 
 @api_router.get("/categories/{category_id}/sub-categories/{sub_category_id}", response_model=SubCategorySchema)
@@ -187,9 +201,9 @@ async def get_sub_category(category_id: int, sub_category_id: int, db: Session =
 
 @api_router.patch("/categories/{category_id}/sub-categories/{sub_category_id}", response_model=SubCategorySchema)
 async def update_sub_category_comment(
-    category_id: int, 
-    sub_category_id: int, 
-    sub_category_data: SubCategoryUpdate, 
+    category_id: int,
+    sub_category_id: int,
+    sub_category_data: SubCategoryUpdate,
     db: Session = Depends(get_db)
 ):
     """Update a sub-category's comment (name is not editable)"""

@@ -27,7 +27,7 @@ async def test_endpoint():
         "message": "Test endpoint working",
         "endpoints": [
             "/",
-            "/api/health", 
+            "/api/health",
             "/api/test"
         ]
     }

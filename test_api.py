@@ -118,14 +118,46 @@ def test_download_schema_endpoint_structure():
     except Exception as e:
         pytest.fail(f"Download schema endpoint test failed: {e}")
 
+def test_category_schema_epic_field():
+    """Test that Category schema includes epic field"""
+    try:
+        from schemas import Category
+        
+        # Test that Category schema has epic field
+        schema_fields = Category.model_fields
+        assert 'epic' in schema_fields, "Category schema should have epic field"
+        
+        # Test that epic is optional
+        assert schema_fields['epic'].default is None, "Epic field should be optional"
+        
+    except Exception as e:
+        pytest.fail(f"Category schema epic field test failed: {e}")
+
+def test_category_database_model_epic_field():
+    """Test that Category database model includes epic field"""
+    try:
+        from database import Category
+        
+        # Test that Category model has epic attribute
+        assert hasattr(Category, 'epic'), "Category model should have epic attribute"
+        
+        # Test that epic column exists in the table definition
+        epic_column = getattr(Category, 'epic')
+        assert epic_column is not None, "Epic column should exist"
+        
+    except Exception as e:
+        pytest.fail(f"Category database model epic field test failed: {e}")
+
 if __name__ == "__main__":
     print("Running basic API tests...")
     test_imports()
-    test_app_creation() 
+    test_app_creation()
     test_lambda_handler()
     test_root_endpoint_structure()
     test_subcategory_schema()
     test_subcategory_database_model()
     test_schema_generation_function()
     test_download_schema_endpoint_structure()
+    test_category_schema_epic_field()
+    test_category_database_model_epic_field()
     print("✅ All tests passed!")

@@ -7,7 +7,10 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Database configuration
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@duo-mapping.cefhyz1bpgbv.us-east-2.rds.amazonaws.com:5432/duo-mapping-db")
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "postgresql://postgres:postgres@duo-mapping.cefhyz1bpgbv.us-east-2.rds.amazonaws.com:5432/duo-mapping-db"
+)
 
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -23,6 +26,7 @@ class Category(Base):
     percent_mapped = Column(Float, default=0.0)
     tab = Column(String(200), nullable=True)
     seq_no = Column(Integer, nullable=True)
+    epic = Column(String(200), nullable=True)
     
     # Relationships
     lines = relationship("Lines", back_populates="category")
