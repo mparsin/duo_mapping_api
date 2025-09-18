@@ -892,47 +892,67 @@ async def search_columns(columnName: str, db: Session = Depends(get_db)):
     # Clean the search term
     search_term = columnName.strip().lower()
     
-    # Query all columns with their table information
-    columns = db.query(ERPColumn, ERPTable).join(ERPTable, ERPColumn.table_id == ERPTable.id).all()
+    # Use database-level filtering with ILIKE for case-insensitive search
+    # This is much more efficient than loading all data and filtering in Python
+    exact_columns = db.query(ERPColumn, ERPTable).join(
+        ERPTable, ERPColumn.table_id == ERPTable.id
+    ).filter(
+        func.lower(ERPColumn.name) == search_term
+    ).all()
     
-    exact_matches = []
-    partial_matches = []
+    partial_columns = db.query(ERPColumn, ERPTable).join(
+        ERPTable, ERPColumn.table_id == ERPTable.id
+    ).filter(
+        func.lower(ERPColumn.name).like(f"%{search_term}%"),
+        func.lower(ERPColumn.name) != search_term  # Exclude exact matches
+    ).all()
     
-    for column, table in columns:
-        column_name_lower = column.name.lower()
+    # Get all column IDs that matched
+    all_matched_column_ids = [col.id for col, _ in exact_columns + partial_columns]
+    
+    # Single query to get all category mappings for all matched columns
+    # This eliminates the N+1 query problem
+    category_mappings = {}
+    if all_matched_column_ids:
+        mappings = db.query(
+            Lines.column_id,
+            Category.id,
+            Category.Name
+        ).join(
+            Category, Lines.categoryid == Category.id
+        ).filter(
+            Lines.column_id.in_(all_matched_column_ids)
+        ).distinct().all()
         
-        # Check for exact match
-        if column_name_lower == search_term:
-            # Get mapped categories for this column
-            mapped_categories = db.query(Category.id, Category.Name).join(Lines, Category.id == Lines.categoryid).filter(
-                Lines.column_id == column.id
-            ).distinct().all()
-            category_info = [CategoryMappingInfo(id=cat.id, name=cat.Name) for cat in mapped_categories]
-            
-            exact_matches.append(ColumnSearchResult(
-                column_name=column.name,
-                table_name=table.name,
-                column_id=column.id,
-                table_id=table.id,
-                match_type="exact",
-                mapped_categories=category_info
-            ))
-        # Check for partial match (contains the search term)
-        elif search_term in column_name_lower:
-            # Get mapped categories for this column
-            mapped_categories = db.query(Category.id, Category.Name).join(Lines, Category.id == Lines.categoryid).filter(
-                Lines.column_id == column.id
-            ).distinct().all()
-            category_info = [CategoryMappingInfo(id=cat.id, name=cat.Name) for cat in mapped_categories]
-            
-            partial_matches.append(ColumnSearchResult(
-                column_name=column.name,
-                table_name=table.name,
-                column_id=column.id,
-                table_id=table.id,
-                match_type="partial",
-                mapped_categories=category_info
-            ))
+        # Group mappings by column_id
+        for column_id, cat_id, cat_name in mappings:
+            if column_id not in category_mappings:
+                category_mappings[column_id] = []
+            category_mappings[column_id].append(CategoryMappingInfo(id=cat_id, name=cat_name))
+    
+    # Build results for exact matches
+    exact_matches = []
+    for column, table in exact_columns:
+        exact_matches.append(ColumnSearchResult(
+            column_name=column.name,
+            table_name=table.name,
+            column_id=column.id,
+            table_id=table.id,
+            match_type="exact",
+            mapped_categories=category_mappings.get(column.id, [])
+        ))
+    
+    # Build results for partial matches
+    partial_matches = []
+    for column, table in partial_columns:
+        partial_matches.append(ColumnSearchResult(
+            column_name=column.name,
+            table_name=table.name,
+            column_id=column.id,
+            table_id=table.id,
+            match_type="partial",
+            mapped_categories=category_mappings.get(column.id, [])
+        ))
     
     # Return exact matches first, then partial matches
     return exact_matches + partial_matches
