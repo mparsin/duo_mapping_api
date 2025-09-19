@@ -44,12 +44,35 @@ A new `exclude` column has been added to the `lines` table that allows individua
 - Updated `update_line()` to handle `exclude` field updates
 - Added new `toggle_line_exclude()` endpoint for easy toggling
 
-### 4. New API Endpoint
+### 4. New API Endpoints
 
+#### Individual Line Exclude
 **Endpoint: `PATCH /api/lines/{line_id}/exclude`**
 - Toggles the exclude status of a line
 - Automatically recalculates category percentage after toggle
 - Returns updated line information with new exclude status
+
+#### Bulk Category Exclude
+**Endpoint: `PATCH /api/categories/{category_id}/exclude`**
+- Excludes all lines in a category from percentage calculations
+- Sets `exclude=True` for all lines in the category
+- Automatically recalculates category percentage (will be 0%)
+
+**Endpoint: `PATCH /api/categories/{category_id}/include`**
+- Includes all lines in a category in percentage calculations
+- Sets `exclude=False` for all lines in the category
+- Automatically recalculates category percentage
+
+#### Bulk Sub-Category Exclude
+**Endpoint: `PATCH /api/categories/{category_id}/sub-categories/{sub_category_id}/exclude`**
+- Excludes all lines in a sub-category from percentage calculations
+- Sets `exclude=True` for all lines in the sub-category
+- Automatically recalculates parent category percentage
+
+**Endpoint: `PATCH /api/categories/{category_id}/sub-categories/{sub_category_id}/include`**
+- Includes all lines in a sub-category in percentage calculations
+- Sets `exclude=False` for all lines in the sub-category
+- Automatically recalculates parent category percentage
 
 ## API Usage Examples
 
@@ -99,6 +122,38 @@ GET /api/categories/1
 
 The `percent_mapped` field will reflect the new calculation excluding the excluded lines.
 
+### 5. Exclude Entire Category
+
+```bash
+PATCH /api/categories/1/exclude
+```
+
+This will exclude all lines in category 1 from percentage calculations.
+
+### 6. Include Entire Category
+
+```bash
+PATCH /api/categories/1/include
+```
+
+This will include all lines in category 1 in percentage calculations.
+
+### 7. Exclude Entire Sub-Category
+
+```bash
+PATCH /api/categories/1/sub-categories/2/exclude
+```
+
+This will exclude all lines in sub-category 2 from percentage calculations.
+
+### 8. Include Entire Sub-Category
+
+```bash
+PATCH /api/categories/1/sub-categories/2/include
+```
+
+This will include all lines in sub-category 2 in percentage calculations.
+
 ## Database Migration
 
 To apply the changes to your database, run the migration script:
@@ -146,3 +201,4 @@ This script demonstrates:
 - Existing lines will have `exclude=FALSE` by default
 - No changes to existing percentage calculations until lines are explicitly excluded
 - Schema exports will continue to include all existing mapped lines until they are excluded
+

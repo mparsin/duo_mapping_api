@@ -37,3 +37,4 @@ ON erp_column (table_id);
 -- Run this after creating the indexes
 -- ANALYZE erp_column;
 -- ANALYZE erp_table;
+

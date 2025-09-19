@@ -177,3 +177,4 @@ print(f'Found {len(response.json())} table matches')
 4. **Query Count**: Should be 1 query per request
 
 The table matching endpoint is now significantly faster and more efficient! 🚀
+

@@ -509,6 +509,162 @@ async def update_sub_category_comment(
     db.refresh(existing_sub_category)
     return existing_sub_category
 
+@api_router.patch(
+    "/categories/{category_id}/sub-categories/{sub_category_id}/exclude",
+    tags=["Sub-Categories"],
+    summary="Exclude Entire Sub-Category",
+    description="Exclude all lines in a sub-category from percentage calculations",
+    responses={
+        200: {
+            "description": "Sub-category lines successfully excluded",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "category_id": 1,
+                        "category_name": "Customer Data",
+                        "sub_category_id": 1,
+                        "sub_category_name": "Personal Information",
+                        "lines_updated": 8,
+                        "exclude_status": True,
+                        "message": "Successfully excluded 8 lines from sub-category 'Personal Information'"
+                    }
+                }
+            }
+        },
+        404: {
+            "description": "Category or sub-category not found",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Sub-category not found"}
+                }
+            }
+        }
+    }
+)
+async def exclude_sub_category(category_id: int, sub_category_id: int, db: Session = Depends(get_db)):
+    """
+    **Exclude entire sub-category from percentage calculations**
+    
+    Sets exclude=True for all lines in the specified sub-category. This will
+    remove all lines in the sub-category from mapping completion percentage calculations.
+    
+    - **category_id**: Unique identifier for the parent category
+    - **sub_category_id**: Unique identifier for the sub-category to exclude
+    """
+    # Check if category exists
+    category = db.query(Category).filter(Category.id == category_id).first()
+    if not category:
+        raise HTTPException(status_code=404, detail="Category not found")
+    
+    # Check if sub-category exists
+    sub_category = db.query(SubCategory).filter(
+        SubCategory.id == sub_category_id,
+        SubCategory.category_id == category_id
+    ).first()
+    
+    if not sub_category:
+        raise HTTPException(status_code=404, detail="Sub-category not found")
+    
+    # Update all lines in the sub-category to exclude=True
+    lines_updated = db.query(Lines).filter(
+        Lines.sub_category_id == sub_category_id
+    ).update({
+        Lines.exclude: True
+    })
+    
+    db.commit()
+    
+    # Update percent_mapped for the category
+    update_category_percent_mapped(db, category_id)
+    
+    return {
+        "category_id": category_id,
+        "category_name": category.Name,
+        "sub_category_id": sub_category_id,
+        "sub_category_name": sub_category.name,
+        "lines_updated": lines_updated,
+        "exclude_status": True,
+        "message": f"Successfully excluded {lines_updated} lines from sub-category '{sub_category.name}'"
+    }
+
+@api_router.patch(
+    "/categories/{category_id}/sub-categories/{sub_category_id}/include",
+    tags=["Sub-Categories"],
+    summary="Include Entire Sub-Category",
+    description="Include all lines in a sub-category in percentage calculations",
+    responses={
+        200: {
+            "description": "Sub-category lines successfully included",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "category_id": 1,
+                        "category_name": "Customer Data",
+                        "sub_category_id": 1,
+                        "sub_category_name": "Personal Information",
+                        "lines_updated": 8,
+                        "exclude_status": False,
+                        "message": "Successfully included 8 lines from sub-category 'Personal Information'"
+                    }
+                }
+            }
+        },
+        404: {
+            "description": "Category or sub-category not found",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Sub-category not found"}
+                }
+            }
+        }
+    }
+)
+async def include_sub_category(category_id: int, sub_category_id: int, db: Session = Depends(get_db)):
+    """
+    **Include entire sub-category in percentage calculations**
+    
+    Sets exclude=False for all lines in the specified sub-category. This will
+    include all lines in the sub-category in mapping completion percentage calculations.
+    
+    - **category_id**: Unique identifier for the parent category
+    - **sub_category_id**: Unique identifier for the sub-category to include
+    """
+    # Check if category exists
+    category = db.query(Category).filter(Category.id == category_id).first()
+    if not category:
+        raise HTTPException(status_code=404, detail="Category not found")
+    
+    # Check if sub-category exists
+    sub_category = db.query(SubCategory).filter(
+        SubCategory.id == sub_category_id,
+        SubCategory.category_id == category_id
+    ).first()
+    
+    if not sub_category:
+        raise HTTPException(status_code=404, detail="Sub-category not found")
+    
+    # Update all lines in the sub-category to exclude=False
+    lines_updated = db.query(Lines).filter(
+        Lines.sub_category_id == sub_category_id
+    ).update({
+        Lines.exclude: False
+    })
+    
+    db.commit()
+    
+    # Update percent_mapped for the category
+    update_category_percent_mapped(db, category_id)
+    
+    return {
+        "category_id": category_id,
+        "category_name": category.Name,
+        "sub_category_id": sub_category_id,
+        "sub_category_name": sub_category.name,
+        "lines_updated": lines_updated,
+        "exclude_status": False,
+        "message": f"Successfully included {lines_updated} lines from sub-category '{sub_category.name}'"
+    }
+
 @api_router.get(
     "/categories/{category_id}/lines",
     response_model=List[LinesSchema],
@@ -912,6 +1068,134 @@ async def toggle_line_exclude(line_id: int, db: Session = Depends(get_db)):
         "comment": updated_line.comment,
         "exclude": updated_line.exclude,
         "action": "exclude_toggled"
+    }
+
+@api_router.patch(
+    "/categories/{category_id}/exclude",
+    tags=["Categories"],
+    summary="Exclude Entire Category",
+    description="Exclude all lines in a category from percentage calculations",
+    responses={
+        200: {
+            "description": "Category lines successfully excluded",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "category_id": 1,
+                        "category_name": "Customer Data",
+                        "lines_updated": 15,
+                        "exclude_status": True,
+                        "message": "Successfully excluded 15 lines from category 'Customer Data'"
+                    }
+                }
+            }
+        },
+        404: {
+            "description": "Category not found",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Category not found"}
+                }
+            }
+        }
+    }
+)
+async def exclude_category(category_id: int, db: Session = Depends(get_db)):
+    """
+    **Exclude entire category from percentage calculations**
+    
+    Sets exclude=True for all lines in the specified category. This will
+    remove all lines in the category from mapping completion percentage calculations.
+    
+    - **category_id**: Unique identifier for the category to exclude
+    """
+    # Check if category exists
+    category = db.query(Category).filter(Category.id == category_id).first()
+    if not category:
+        raise HTTPException(status_code=404, detail="Category not found")
+    
+    # Update all lines in the category to exclude=True
+    lines_updated = db.query(Lines).filter(
+        Lines.categoryid == category_id
+    ).update({
+        Lines.exclude: True
+    })
+    
+    db.commit()
+    
+    # Update percent_mapped for the category (should be 0% now)
+    update_category_percent_mapped(db, category_id)
+    
+    return {
+        "category_id": category_id,
+        "category_name": category.Name,
+        "lines_updated": lines_updated,
+        "exclude_status": True,
+        "message": f"Successfully excluded {lines_updated} lines from category '{category.Name}'"
+    }
+
+@api_router.patch(
+    "/categories/{category_id}/include",
+    tags=["Categories"],
+    summary="Include Entire Category",
+    description="Include all lines in a category in percentage calculations",
+    responses={
+        200: {
+            "description": "Category lines successfully included",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "category_id": 1,
+                        "category_name": "Customer Data",
+                        "lines_updated": 15,
+                        "exclude_status": False,
+                        "message": "Successfully included 15 lines from category 'Customer Data'"
+                    }
+                }
+            }
+        },
+        404: {
+            "description": "Category not found",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Category not found"}
+                }
+            }
+        }
+    }
+)
+async def include_category(category_id: int, db: Session = Depends(get_db)):
+    """
+    **Include entire category in percentage calculations**
+    
+    Sets exclude=False for all lines in the specified category. This will
+    include all lines in the category in mapping completion percentage calculations.
+    
+    - **category_id**: Unique identifier for the category to include
+    """
+    # Check if category exists
+    category = db.query(Category).filter(Category.id == category_id).first()
+    if not category:
+        raise HTTPException(status_code=404, detail="Category not found")
+    
+    # Update all lines in the category to exclude=False
+    lines_updated = db.query(Lines).filter(
+        Lines.categoryid == category_id
+    ).update({
+        Lines.exclude: False
+    })
+    
+    db.commit()
+    
+    # Update percent_mapped for the category
+    update_category_percent_mapped(db, category_id)
+    
+    return {
+        "category_id": category_id,
+        "category_name": category.Name,
+        "lines_updated": lines_updated,
+        "exclude_status": False,
+        "message": f"Successfully included {lines_updated} lines from category '{category.Name}'"
     }
 
 @api_router.get(
