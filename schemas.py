@@ -93,6 +93,11 @@ class LinesBase(BaseModel):
         description="Target ERP column identifier",
         example=23
     )
+    exclude: Optional[bool] = Field(
+        default=False,
+        description="Whether this line should be excluded from percentage calculations",
+        example=False
+    )
 
 class Lines(LinesBase):
     id: int = Field(
@@ -114,6 +119,11 @@ class Lines(LinesBase):
         default=None,
         description="Target ERP column name (populated from column_id)",
         example="full_name"
+    )
+    exclude: bool = Field(
+        default=False,
+        description="Whether this line should be excluded from percentage calculations",
+        example=False
     )
     
     class Config:
@@ -253,6 +263,11 @@ class LineCreate(BaseModel):
         description="Comment about this mapping",
         example="Mapped to primary customer name field"
     )
+    exclude: Optional[bool] = Field(
+        default=False,
+        description="Whether this line should be excluded from percentage calculations",
+        example=False
+    )
 
 class LineResponse(BaseModel):
     id: int = Field(
@@ -289,6 +304,11 @@ class LineResponse(BaseModel):
         default=None,
         description="Mapping comment",
         example="Mapped to primary customer name field"
+    )
+    exclude: bool = Field(
+        default=False,
+        description="Whether this line should be excluded from percentage calculations",
+        example=False
     )
     action: str = Field(
         ...,

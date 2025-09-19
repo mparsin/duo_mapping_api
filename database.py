@@ -47,6 +47,7 @@ class Lines(Base):
     sub_category_id = Column(Integer, ForeignKey("sub-category.id"))
     table_id = Column(Integer, ForeignKey("erp_table.id"))
     column_id = Column(Integer, ForeignKey("erp_column.id"))
+    exclude = Column(Boolean, default=False, nullable=False)
     
     # Relationships
     category = relationship("Category", back_populates="lines")

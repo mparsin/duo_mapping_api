@@ -112,24 +112,26 @@ api_router = APIRouter(prefix="/api")
 # Helper function to calculate and update percent_mapped for a category
 def update_category_percent_mapped(db: Session, category_id: int):
     """Calculate and update the percent_mapped field for a category"""
-    # Get total lines count for this category (only lines with non-empty field_name)
+    # Get total lines count for this category (only lines with non-empty field_name and exclude=False)
     total_lines = db.query(func.count(Lines.id)).filter(
         Lines.categoryid == category_id,
         Lines.field_name.isnot(None),
-        Lines.field_name != ""
+        Lines.field_name != "",
+        Lines.exclude == False
     ).scalar()
     
     if total_lines == 0:
         # No lines with field_name in category, set percent to 0
         percent_mapped = 0.0
     else:
-        # Count mapped lines (lines that have both table_id and column_id AND non-empty field_name)
+        # Count mapped lines (lines that have both table_id and column_id AND non-empty field_name and exclude=False)
         mapped_lines = db.query(func.count(Lines.id)).filter(
             Lines.categoryid == category_id,
             Lines.field_name.isnot(None),
             Lines.field_name != "",
             Lines.table_id.isnot(None),
-            Lines.column_id.isnot(None)
+            Lines.column_id.isnot(None),
+            Lines.exclude == False
         ).scalar()
         
         # Calculate percentage
@@ -145,10 +147,11 @@ def update_category_percent_mapped(db: Session, category_id: int):
 def generate_mapped_schema(db: Session) -> Dict[str, Any]:
     """Generate schema JSON containing only tables and columns that have mappings"""
     
-    # Get all mapped lines (lines that have both table_id and column_id)
+    # Get all mapped lines (lines that have both table_id and column_id and exclude=False)
     mapped_lines = db.query(Lines).filter(
         Lines.table_id.isnot(None),
-        Lines.column_id.isnot(None)
+        Lines.column_id.isnot(None),
+        Lines.exclude == False
     ).options(
         joinedload(Lines.erp_table),
         joinedload(Lines.erp_column),
@@ -585,7 +588,8 @@ async def get_lines_by_category(category_id: int, db: Session = Depends(get_db))
             "table_id": line.table_id,
             "column_id": line.column_id,
             "table_name": line.erp_table.name if line.erp_table else None,
-            "column_name": line.erp_column.name if line.erp_column else None
+            "column_name": line.erp_column.name if line.erp_column else None,
+            "exclude": line.exclude
         }
         result.append(line_dict)
     
@@ -748,6 +752,10 @@ async def update_line(line_id: int, line_data: LineCreate, db: Session = Depends
     if line_data.comment is not None:
         existing_line.comment = line_data.comment
     
+    # Handle exclude update (can be done independently of table/column updates)
+    if line_data.exclude is not None:
+        existing_line.exclude = line_data.exclude
+    
     # Handle table_id clearing logic
     if line_data.table_id is None or line_data.table_id == 0:
         # Clear table_id and column_id for the specific line only
@@ -772,6 +780,7 @@ async def update_line(line_id: int, line_data: LineCreate, db: Session = Depends
             "table_name": updated_line.erp_table.name if updated_line.erp_table else None,
             "column_name": updated_line.erp_column.name if updated_line.erp_column else None,
             "comment": updated_line.comment,
+            "exclude": updated_line.exclude,
             "action": "cleared_table_id"
         }
     
@@ -825,7 +834,84 @@ async def update_line(line_id: int, line_data: LineCreate, db: Session = Depends
         "table_name": updated_line.erp_table.name if updated_line.erp_table else None,
         "column_name": updated_line.erp_column.name if updated_line.erp_column else None,
         "comment": updated_line.comment,
+        "exclude": updated_line.exclude,
         "action": action
+    }
+
+@api_router.patch(
+    "/lines/{line_id}/exclude",
+    response_model=LineResponse,
+    tags=["Lines"],
+    summary="Toggle Line Exclude Status",
+    description="Toggle the exclude status of a line (exclude from percentage calculations)",
+    responses={
+        200: {
+            "description": "Line exclude status successfully updated",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "id": 1,
+                        "categoryid": 1,
+                        "table_id": 5,
+                        "column_id": 23,
+                        "table_name": "customers",
+                        "column_name": "full_name",
+                        "comment": "Mapped to primary customer name field",
+                        "exclude": True,
+                        "action": "exclude_toggled"
+                    }
+                }
+            }
+        },
+        404: {
+            "description": "Line not found",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Line not found"}
+                }
+            }
+        }
+    }
+)
+async def toggle_line_exclude(line_id: int, db: Session = Depends(get_db)):
+    """
+    **Toggle line exclude status**
+    
+    Toggles the exclude status of a line. When exclude=True, the line will be
+    excluded from all percentage calculations related to mapping.
+    
+    - **line_id**: Unique identifier for the line to toggle
+    """
+    # Find the line by ID
+    existing_line = db.query(Lines).filter(Lines.id == line_id).first()
+    if not existing_line:
+        raise HTTPException(status_code=404, detail="Line not found")
+    
+    # Toggle the exclude status
+    existing_line.exclude = not existing_line.exclude
+    
+    db.commit()
+    db.refresh(existing_line)
+    
+    # Update percent_mapped for the category
+    update_category_percent_mapped(db, existing_line.categoryid)
+    
+    # Load the related table and column data for the response
+    updated_line = db.query(Lines).options(
+        joinedload(Lines.erp_table),
+        joinedload(Lines.erp_column)
+    ).filter(Lines.id == existing_line.id).first()
+    
+    return {
+        "id": updated_line.id,
+        "categoryid": updated_line.categoryid,
+        "table_id": updated_line.table_id,
+        "column_id": updated_line.column_id,
+        "table_name": updated_line.erp_table.name if updated_line.erp_table else None,
+        "column_name": updated_line.erp_column.name if updated_line.erp_column else None,
+        "comment": updated_line.comment,
+        "exclude": updated_line.exclude,
+        "action": "exclude_toggled"
     }
 
 @api_router.get(
