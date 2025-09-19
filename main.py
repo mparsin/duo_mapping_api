@@ -204,7 +204,9 @@ def generate_mapped_schema(db: Session) -> Dict[str, Any]:
                 },
                 "comment": column.comment,
                 "category": line.category.Name if line.category else None,
-                "sub_category": line.sub_category.name if line.sub_category else None
+                "sub_category": line.sub_category.name if line.sub_category else None,
+                "group": line.category.tab if line.category else None,
+                "epic": line.category.epic if line.category else None
             }
             
             # Add description field if reason is not null
