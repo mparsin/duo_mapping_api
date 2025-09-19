@@ -10,4 +10,5 @@ dependencies = [
     "psycopg2-binary>=2.9.0",
     "python-dotenv>=1.0.0",
     "fastapi-cors>=0.0.6",
+    "requests>=2.32.5",
 ]

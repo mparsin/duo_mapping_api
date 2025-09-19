@@ -1016,34 +1016,43 @@ async def find_table_matches(request: TableMatchRequest, db: Session = Depends(g
     if not search_columns:
         raise HTTPException(status_code=400, detail="No valid column names provided")
     
-    # Get all tables with their columns
-    tables = db.query(ERPTable).options(joinedload(ERPTable.columns)).all()
+    # Use database-level filtering instead of loading all data
+    # This query finds all columns that match any of the search terms
+    matching_columns = db.query(
+        ERPColumn.name,
+        ERPColumn.table_id,
+        ERPTable.name.label('table_name')
+    ).join(
+        ERPTable, ERPColumn.table_id == ERPTable.id
+    ).filter(
+        func.lower(ERPColumn.name).in_(search_columns)
+    ).all()
     
+    # Group matches by table
+    table_matches_dict = {}
+    for column_name, table_id, table_name in matching_columns:
+        if table_id not in table_matches_dict:
+            table_matches_dict[table_id] = {
+                'table_id': table_id,
+                'table_name': table_name,
+                'matched_columns': [],
+                'match_count': 0
+            }
+        
+        table_matches_dict[table_id]['matched_columns'].append(column_name)
+        table_matches_dict[table_id]['match_count'] += 1
+    
+    # Convert to list and sort by match count (descending) then by table name (ascending)
     table_matches = []
+    for table_data in table_matches_dict.values():
+        table_matches.append(TableMatchResult(
+            table_id=table_data['table_id'],
+            table_name=table_data['table_name'],
+            match_count=table_data['match_count'],
+            matched_columns=sorted(table_data['matched_columns'])  # Sort columns for consistency
+        ))
     
-    for table in tables:
-        matched_columns = []
-        match_count = 0
-        
-        # Check each column in the table against our search list
-        for column in table.columns:
-            column_name_lower = column.name.lower()
-            
-            # Check for exact matches only
-            if column_name_lower in search_columns:
-                matched_columns.append(column.name)
-                match_count += 1
-        
-        # Only include tables that have at least one match
-        if match_count > 0:
-            table_matches.append(TableMatchResult(
-                table_id=table.id,
-                table_name=table.name,
-                match_count=match_count,
-                matched_columns=matched_columns
-            ))
-    
-    # Sort by match count (descending) and then by table name (ascending) for consistent ordering
+    # Sort by match count (descending) and then by table name (ascending)
     table_matches.sort(key=lambda x: (-x.match_count, x.table_name))
     
     return table_matches

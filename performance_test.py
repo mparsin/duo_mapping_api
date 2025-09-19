@@ -56,3 +56,4 @@ if __name__ == "__main__":
         print(f"\n{'='*60}")
         test_endpoint_performance(search_term=term, iterations=3)
         time.sleep(1)  # Brief pause between tests
+
