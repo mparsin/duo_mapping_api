@@ -120,9 +120,19 @@ def update_category_percent_mapped(db: Session, category_id: int):
         Lines.exclude == False
     ).scalar()
     
-    if total_lines == 0:
-        # No lines with field_name in category, set percent to 0
+    # Get total lines count for this category (all lines with non-empty field_name, regardless of exclude status)
+    total_lines_all = db.query(func.count(Lines.id)).filter(
+        Lines.categoryid == category_id,
+        Lines.field_name.isnot(None),
+        Lines.field_name != ""
+    ).scalar()
+    
+    if total_lines_all == 0:
+        # No lines with field_name in category at all, set percent to 0
         percent_mapped = 0.0
+    elif total_lines == 0:
+        # All lines in category are excluded, set percent to 100 (task completed)
+        percent_mapped = 100.0
     else:
         # Count mapped lines (lines that have both table_id and column_id AND non-empty field_name and exclude=False)
         mapped_lines = db.query(func.count(Lines.id)).filter(

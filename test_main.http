@@ -199,6 +199,59 @@ Content-Type: application/json
 
 ###
 
+### Test exclude functionality - Toggle line exclude status
+PATCH http://localhost:8000/api/lines/1/exclude
+Accept: application/json
+
+###
+
+### Test bulk exclude - Exclude entire category
+PATCH http://localhost:8000/api/categories/1/exclude
+Accept: application/json
+
+###
+
+### Check category percentage after excluding all lines (should be 100%)
+GET http://localhost:8000/api/categories/1
+Accept: application/json
+
+###
+
+### Test bulk include - Include entire category back
+PATCH http://localhost:8000/api/categories/1/include
+Accept: application/json
+
+###
+
+### Check category percentage after including all lines back
+GET http://localhost:8000/api/categories/1
+Accept: application/json
+
+###
+
+### Test sub-category exclude (if sub-categories exist)
+PATCH http://localhost:8000/api/categories/1/sub-categories/1/exclude
+Accept: application/json
+
+###
+
+### Test sub-category include (if sub-categories exist)
+PATCH http://localhost:8000/api/categories/1/sub-categories/1/include
+Accept: application/json
+
+###
+
+### Update line with ID 1 (should update if exists)
+PATCH http://localhost:8000/api/lines/1
+Content-Type: application/json
+
+{
+  "table_id": 1,
+  "column_id": 1
+}
+
+###
+
 ### Update line with ID 1 including comment
 PATCH http://localhost:8000/api/lines/1
 Content-Type: application/json

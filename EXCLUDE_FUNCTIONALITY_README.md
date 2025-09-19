@@ -34,6 +34,7 @@ A new `exclude` column has been added to the `lines` table that allows individua
 - Updated `update_category_percent_mapped()` function to exclude lines where `exclude=True`
 - **Total lines**: Lines with non-empty `field_name` AND `exclude=False`
 - **Mapped lines**: Lines with both `table_id` and `column_id` AND non-empty `field_name` AND `exclude=False`
+- **Special case**: When all lines in a category are excluded (`exclude=True`), the category percentage is set to 100% (indicating the mapping task is complete)
 
 #### Schema Export Logic
 - Updated `generate_mapped_schema()` function to exclude lines where `exclude=True`

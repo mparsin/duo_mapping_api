@@ -15,7 +15,7 @@ Building on the individual line exclude functionality, the API now supports bulk
 PATCH /api/categories/{category_id}/exclude
 ```
 
-**Description:** Excludes all lines in a category from percentage calculations by setting `exclude=True` for all lines in the category.
+**Description:** Excludes all lines in a category from percentage calculations by setting `exclude=True` for all lines in the category. When all lines are excluded, the category percentage will be set to 100% (indicating the mapping task is complete).
 
 **Response:**
 ```json
