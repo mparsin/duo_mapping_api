@@ -112,33 +112,38 @@ api_router = APIRouter(prefix="/api")
 # Helper function to calculate and update percent_mapped for a category
 def update_category_percent_mapped(db: Session, category_id: int):
     """Calculate and update the percent_mapped field for a category"""
-    # Get total lines count for this category (only lines with non-empty field_name and exclude=False)
+    # Get total lines count for this category (exclude lines only if field_name is NULL AND both table_id and column_id are NULL)
     total_lines = db.query(func.count(Lines.id)).filter(
         Lines.categoryid == category_id,
-        Lines.field_name.isnot(None),
-        Lines.field_name != "",
+        ~(
+            (Lines.field_name.is_(None) | (Lines.field_name == "")) &
+            Lines.table_id.is_(None) &
+            Lines.column_id.is_(None)
+        ),
         Lines.exclude == False
     ).scalar()
     
-    # Get total lines count for this category (all lines with non-empty field_name, regardless of exclude status)
+    # Get total lines count for this category (all lines except those with NULL field_name AND both table_id and column_id NULL, regardless of exclude status)
     total_lines_all = db.query(func.count(Lines.id)).filter(
         Lines.categoryid == category_id,
-        Lines.field_name.isnot(None),
-        Lines.field_name != ""
+        ~(
+            (Lines.field_name.is_(None) | (Lines.field_name == "")) &
+            Lines.table_id.is_(None) &
+            Lines.column_id.is_(None)
+        )
     ).scalar()
     
     if total_lines_all == 0:
-        # No lines with field_name in category at all, set percent to 0
+        # No valid lines in category at all, set percent to 0
         percent_mapped = 0.0
     elif total_lines == 0:
         # All lines in category are excluded, set percent to 100 (task completed)
         percent_mapped = 100.0
     else:
-        # Count mapped lines (lines that have both table_id and column_id AND non-empty field_name and exclude=False)
+        # Count mapped lines (lines that have both table_id and column_id AND exclude=False)
+        # Note: field_name can be NULL as long as table_id and column_id are not NULL
         mapped_lines = db.query(func.count(Lines.id)).filter(
             Lines.categoryid == category_id,
-            Lines.field_name.isnot(None),
-            Lines.field_name != "",
             Lines.table_id.isnot(None),
             Lines.column_id.isnot(None),
             Lines.exclude == False
