@@ -139,8 +139,13 @@ def update_category_percent_mapped(db: Session, category_id: int):
         Lines.exclude == True
     ).scalar()
     
-    if total_lines_all == 0:
-        # No valid lines in category at all, set percent to 0
+    # Get total lines in category (all lines, regardless of field_name or exclude status)
+    total_lines_in_category = db.query(func.count(Lines.id)).filter(
+        Lines.categoryid == category_id
+    ).scalar()
+    
+    if total_lines_in_category == 0:
+        # No lines in category at all, set percent to 0
         percent_mapped = 0.0
     elif total_lines == 0 and excluded_lines > 0:
         # All valid lines in category are excluded, set percent to 100 (task completed)
