@@ -98,6 +98,11 @@ class LinesBase(BaseModel):
         description="Whether this line should be excluded from percentage calculations",
         example=False
     )
+    iskeyfield: Optional[bool] = Field(
+        default=False,
+        description="Whether this line represents a key field",
+        example=False
+    )
 
 class Lines(LinesBase):
     id: int = Field(
@@ -123,6 +128,11 @@ class Lines(LinesBase):
     exclude: bool = Field(
         default=False,
         description="Whether this line should be excluded from percentage calculations",
+        example=False
+    )
+    iskeyfield: bool = Field(
+        default=False,
+        description="Whether this line represents a key field",
         example=False
     )
     
@@ -268,6 +278,11 @@ class LineCreate(BaseModel):
         description="Whether this line should be excluded from percentage calculations",
         example=False
     )
+    iskeyfield: Optional[bool] = Field(
+        default=False,
+        description="Whether this line represents a key field",
+        example=False
+    )
 
 class LineResponse(BaseModel):
     id: int = Field(
@@ -308,6 +323,11 @@ class LineResponse(BaseModel):
     exclude: bool = Field(
         default=False,
         description="Whether this line should be excluded from percentage calculations",
+        example=False
+    )
+    iskeyfield: bool = Field(
+        default=False,
+        description="Whether this line represents a key field",
         example=False
     )
     action: str = Field(
