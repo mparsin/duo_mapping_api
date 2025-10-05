@@ -1,0 +1,125 @@
+# Test Category Config Endpoints
+
+### Health Check
+GET http://localhost:8000/api/health
+Accept: application/json
+
+###
+
+### Get all categories to see current state
+GET http://localhost:8000/api/categories
+Accept: application/json
+
+###
+
+### Get specific category to see current config
+GET http://localhost:8000/api/categories/1
+Accept: application/json
+
+###
+
+### Test POST - Create config for category 1 (if it doesn't have one)
+POST http://localhost:8000/api/categories/1/config
+Content-Type: application/json
+
+{
+  "config": {
+    "theme": "blue",
+    "enabled": true,
+    "settings": {
+      "auto_save": true,
+      "notifications": false
+    }
+  }
+}
+
+###
+
+### Test PATCH - Update config for category 1
+PATCH http://localhost:8000/api/categories/1/config
+Content-Type: application/json
+
+{
+  "config": {
+    "theme": "green",
+    "enabled": true,
+    "settings": {
+      "auto_save": false,
+      "notifications": true,
+      "advanced_mode": true
+    }
+  }
+}
+
+###
+
+### Test POST on category that already has config (should return 400)
+POST http://localhost:8000/api/categories/1/config
+Content-Type: application/json
+
+{
+  "config": {
+    "theme": "red",
+    "enabled": false
+  }
+}
+
+###
+
+### Test DELETE - Remove config from category 1
+DELETE http://localhost:8000/api/categories/1/config
+Accept: application/json
+
+###
+
+### Test DELETE on category with no config (should return 404)
+DELETE http://localhost:8000/api/categories/1/config
+Accept: application/json
+
+###
+
+### Test operations on non-existent category (should return 404)
+GET http://localhost:8000/api/categories/999
+Accept: application/json
+
+###
+
+POST http://localhost:8000/api/categories/999/config
+Content-Type: application/json
+
+{
+  "config": {
+    "theme": "purple",
+    "enabled": true
+  }
+}
+
+###
+
+PATCH http://localhost:8000/api/categories/999/config
+Content-Type: application/json
+
+{
+  "config": {
+    "theme": "orange",
+    "enabled": false
+  }
+}
+
+###
+
+DELETE http://localhost:8000/api/categories/999/config
+Accept: application/json
+
+###
+
+### Test with invalid JSON (should return 500)
+PATCH http://localhost:8000/api/categories/1/config
+Content-Type: application/json
+
+{
+  "config": {
+    "theme": "blue",
+    "enabled": "invalid_boolean"
+  }
+}

@@ -15,7 +15,9 @@ from schemas import (
     ColumnSearchResult,
     CategoryMappingInfo,
     TableMatchRequest,
-    TableMatchResult
+    TableMatchResult,
+    CategoryConfigUpdate,
+    CategoryConfigResponse
 )
 from typing import List, Dict, Any
 from sqlalchemy import func
@@ -362,6 +364,232 @@ async def get_category(category_id: int, db: Session = Depends(get_db)):
     if not category:
         raise HTTPException(status_code=404, detail="Category not found")
     return category
+
+@api_router.patch(
+    "/categories/{category_id}/config",
+    response_model=CategoryConfigResponse,
+    tags=["Categories"],
+    summary="Update Category Config",
+    description="Update the configuration settings for a specific category",
+    responses={
+        200: {
+            "description": "Category config successfully updated",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "id": 1,
+                        "Name": "Customer Data",
+                        "config": {"theme": "blue", "enabled": True, "settings": {"auto_save": True}},
+                        "message": "Config successfully updated"
+                    }
+                }
+            }
+        },
+        404: {
+            "description": "Category not found",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Category not found"}
+                }
+            }
+        },
+        500: {
+            "description": "Database validation error",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Database validation failed: Invalid JSON structure"}
+                }
+            }
+        }
+    }
+)
+async def update_category_config(
+    category_id: int,
+    config_data: CategoryConfigUpdate,
+    db: Session = Depends(get_db)
+):
+    """
+    **Update category configuration**
+    
+    Updates the configuration settings for an existing category. The config field
+    accepts any valid JSON object that can be stored in PostgreSQL.
+    
+    - **category_id**: Unique identifier for the category
+    - **config_data**: Object containing the new configuration settings
+    """
+    # Check if category exists
+    category = db.query(Category).filter(Category.id == category_id).first()
+    if not category:
+        raise HTTPException(status_code=404, detail="Category not found")
+    
+    try:
+        # Update the config field
+        category.config = config_data.config
+        db.commit()
+        db.refresh(category)
+        
+        return CategoryConfigResponse(
+            id=category.id,
+            Name=category.Name,
+            config=category.config,
+            message="Config successfully updated"
+        )
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Database validation failed: {str(e)}")
+
+@api_router.post(
+    "/categories/{category_id}/config",
+    response_model=CategoryConfigResponse,
+    tags=["Categories"],
+    summary="Create Category Config",
+    description="Add configuration settings to a category that doesn't have any config yet",
+    responses={
+        200: {
+            "description": "Category config successfully created",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "id": 1,
+                        "Name": "Customer Data",
+                        "config": {"theme": "blue", "enabled": True, "settings": {"auto_save": True}},
+                        "message": "Config successfully created"
+                    }
+                }
+            }
+        },
+        400: {
+            "description": "Category already has config",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Category already has configuration settings. Use PATCH to update."}
+                }
+            }
+        },
+        404: {
+            "description": "Category not found",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Category not found"}
+                }
+            }
+        },
+        500: {
+            "description": "Database validation error",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Database validation failed: Invalid JSON structure"}
+                }
+            }
+        }
+    }
+)
+async def create_category_config(
+    category_id: int,
+    config_data: CategoryConfigUpdate,
+    db: Session = Depends(get_db)
+):
+    """
+    **Create category configuration**
+    
+    Adds configuration settings to a category that doesn't have any config yet.
+    If the category already has config, returns an error suggesting to use PATCH instead.
+    
+    - **category_id**: Unique identifier for the category
+    - **config_data**: Object containing the configuration settings to add
+    """
+    # Check if category exists
+    category = db.query(Category).filter(Category.id == category_id).first()
+    if not category:
+        raise HTTPException(status_code=404, detail="Category not found")
+    
+    # Check if category already has config
+    if category.config is not None:
+        raise HTTPException(
+            status_code=400, 
+            detail="Category already has configuration settings. Use PATCH to update."
+        )
+    
+    try:
+        # Add the config field
+        category.config = config_data.config
+        db.commit()
+        db.refresh(category)
+        
+        return CategoryConfigResponse(
+            id=category.id,
+            Name=category.Name,
+            config=category.config,
+            message="Config successfully created"
+        )
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Database validation failed: {str(e)}")
+
+@api_router.delete(
+    "/categories/{category_id}/config",
+    response_model=CategoryConfigResponse,
+    tags=["Categories"],
+    summary="Delete Category Config",
+    description="Remove configuration settings from a category",
+    responses={
+        200: {
+            "description": "Category config successfully deleted",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "id": 1,
+                        "Name": "Customer Data",
+                        "config": None,
+                        "message": "Config successfully deleted"
+                    }
+                }
+            }
+        },
+        404: {
+            "description": "Category not found or has no config",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Category not found or has no configuration to delete"}
+                }
+            }
+        }
+    }
+)
+async def delete_category_config(
+    category_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    **Delete category configuration**
+    
+    Removes the configuration settings from a category by setting the config field to null.
+    
+    - **category_id**: Unique identifier for the category
+    """
+    # Check if category exists
+    category = db.query(Category).filter(Category.id == category_id).first()
+    if not category:
+        raise HTTPException(status_code=404, detail="Category not found")
+    
+    # Check if category has config to delete
+    if category.config is None:
+        raise HTTPException(
+            status_code=404, 
+            detail="Category not found or has no configuration to delete"
+        )
+    
+    # Remove the config field
+    category.config = None
+    db.commit()
+    db.refresh(category)
+    
+    return CategoryConfigResponse(
+        id=category.id,
+        Name=category.Name,
+        config=category.config,
+        message="Config successfully deleted"
+    )
 
 @api_router.get(
     "/categories/{category_id}/sub-categories",

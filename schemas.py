@@ -46,6 +46,39 @@ class Category(CategoryBase):
     class Config:
         from_attributes = True
 
+# Category config schemas
+class CategoryConfigUpdate(BaseModel):
+    config: Dict[str, Any] = Field(
+        ...,
+        description="Configuration settings for this category as JSON",
+        example={"theme": "blue", "enabled": True, "settings": {"auto_save": True}}
+    )
+
+class CategoryConfigResponse(BaseModel):
+    id: int = Field(
+        ...,
+        description="Unique category identifier",
+        example=1
+    )
+    Name: str = Field(
+        ...,
+        description="Category name",
+        example="Customer Data"
+    )
+    config: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Configuration settings for this category as JSON",
+        example={"theme": "blue", "enabled": True}
+    )
+    message: str = Field(
+        ...,
+        description="Operation result message",
+        example="Config successfully updated"
+    )
+    
+    class Config:
+        from_attributes = True
+
 # Lines schemas
 class LinesBase(BaseModel):
     default: Optional[str] = Field(
