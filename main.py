@@ -223,7 +223,8 @@ def generate_mapped_schema(db: Session) -> Dict[str, Any]:
                 "sub_category": line.sub_category.name if line.sub_category else None,
                 "group": line.category.tab if line.category else None,
                 "epic": line.category.epic if line.category else None,
-                "iskeyfield": line.iskeyfield
+                "iskeyfield": line.iskeyfield,
+                "isfkfield": line.isfkfield
             }
             
             # Add description field if reason is not null
@@ -722,7 +723,8 @@ async def include_sub_category(category_id: int, sub_category_id: int, db: Sessi
                             "table_name": "customers",
                             "column_name": "full_name",
                             "exclude": False,
-                            "iskeyfield": True
+                            "iskeyfield": True,
+                            "isfkfield": False
                         }
                     ]
                 }
@@ -752,11 +754,11 @@ async def get_lines_by_category(category_id: int, db: Session = Depends(get_db))
     if not category:
         raise HTTPException(status_code=404, detail="Category not found")
     
-    # Query lines with joined table and column information ordered by ID
+    # Query lines with joined table and column information ordered by seq_no (nulls last), then by ID
     lines = db.query(Lines).options(
         joinedload(Lines.erp_table),
         joinedload(Lines.erp_column)
-    ).filter(Lines.categoryid == category_id).order_by(Lines.id).all()
+    ).filter(Lines.categoryid == category_id).order_by(Lines.seq_no.nulls_last(), Lines.id).all()
     
     # Convert to response format with table_name and column_name
     result = []
@@ -777,7 +779,9 @@ async def get_lines_by_category(category_id: int, db: Session = Depends(get_db))
             "table_name": line.erp_table.name if line.erp_table else None,
             "column_name": line.erp_column.name if line.erp_column else None,
             "exclude": line.exclude,
-            "iskeyfield": line.iskeyfield
+            "iskeyfield": line.iskeyfield,
+            "isfkfield": line.isfkfield,
+            "seq_no": line.seq_no
         }
         result.append(line_dict)
     
@@ -896,6 +900,7 @@ async def get_erp_columns_by_table(table_id: int, db: Session = Depends(get_db))
                         "comment": "Updated mapping comment",
                         "exclude": False,
                         "iskeyfield": True,
+                        "isfkfield": False,
                         "action": "updated"
                     }
                 }
@@ -950,6 +955,10 @@ async def update_line(line_id: int, line_data: LineCreate, db: Session = Depends
     if line_data.iskeyfield is not None:
         existing_line.iskeyfield = line_data.iskeyfield
     
+    # Handle isfkfield update (can be done independently of table/column updates)
+    if line_data.isfkfield is not None:
+        existing_line.isfkfield = line_data.isfkfield
+    
     # Handle table_id clearing logic
     if line_data.table_id is None or line_data.table_id == 0:
         # Clear table_id and column_id for the specific line only
@@ -976,6 +985,7 @@ async def update_line(line_id: int, line_data: LineCreate, db: Session = Depends
             "comment": updated_line.comment,
             "exclude": updated_line.exclude,
             "iskeyfield": updated_line.iskeyfield,
+            "isfkfield": updated_line.isfkfield,
             "action": "cleared_table_id"
         }
     
@@ -1031,6 +1041,7 @@ async def update_line(line_id: int, line_data: LineCreate, db: Session = Depends
         "comment": updated_line.comment,
         "exclude": updated_line.exclude,
         "iskeyfield": updated_line.iskeyfield,
+        "isfkfield": updated_line.isfkfield,
         "action": action
     }
 
@@ -1055,6 +1066,7 @@ async def update_line(line_id: int, line_data: LineCreate, db: Session = Depends
                         "comment": "Mapped to primary customer name field",
                         "exclude": True,
                         "iskeyfield": True,
+                        "isfkfield": False,
                         "action": "exclude_toggled"
                     }
                 }
@@ -1109,6 +1121,7 @@ async def toggle_line_exclude(line_id: int, db: Session = Depends(get_db)):
         "comment": updated_line.comment,
         "exclude": updated_line.exclude,
         "iskeyfield": updated_line.iskeyfield,
+        "isfkfield": updated_line.isfkfield,
         "action": "exclude_toggled"
     }
 
@@ -1564,7 +1577,8 @@ async def health_check():
                                         "category": "Customer Data",
                                         "sub_category": "Personal Information",
                                         "description": "Primary customer identifier",
-                                        "iskeyfield": True
+                                        "iskeyfield": True,
+                                        "isfkfield": False
                                     }
                                 ]
                             }

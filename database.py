@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, Integer, String, BigInteger, ForeignKey, Float, Boolean
+from sqlalchemy import create_engine, Column, Integer, String, BigInteger, ForeignKey, Float, Boolean, JSON
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 import os
@@ -27,6 +27,7 @@ class Category(Base):
     tab = Column(String(200), nullable=True)
     seq_no = Column(Integer, nullable=True)
     epic = Column(String(200), nullable=True)
+    config = Column(JSON, nullable=True)
     
     # Relationships
     lines = relationship("Lines", back_populates="category")
@@ -49,6 +50,8 @@ class Lines(Base):
     column_id = Column(Integer, ForeignKey("erp_column.id"))
     exclude = Column(Boolean, default=False, nullable=False)
     iskeyfield = Column(Boolean, default=False, nullable=False)
+    isfkfield = Column(Boolean, default=False, nullable=False)
+    seq_no = Column(Integer, nullable=True)
     
     # Relationships
     category = relationship("Category", back_populates="lines")

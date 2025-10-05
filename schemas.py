@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 
 # Category schemas
 class CategoryBase(BaseModel):
@@ -36,6 +36,11 @@ class Category(CategoryBase):
         default=None,
         description="Associated epic or project identifier",
         example="Data Migration"
+    )
+    config: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Configuration settings for this category as JSON",
+        example={"theme": "blue", "enabled": True}
     )
     
     class Config:
@@ -103,6 +108,16 @@ class LinesBase(BaseModel):
         description="Whether this line represents a key field",
         example=False
     )
+    isfkfield: Optional[bool] = Field(
+        default=False,
+        description="Whether this line represents a foreign key field",
+        example=False
+    )
+    seq_no: Optional[int] = Field(
+        default=None,
+        description="Display sequence number for ordering lines",
+        example=1
+    )
 
 class Lines(LinesBase):
     id: int = Field(
@@ -134,6 +149,16 @@ class Lines(LinesBase):
         default=False,
         description="Whether this line represents a key field",
         example=False
+    )
+    isfkfield: bool = Field(
+        default=False,
+        description="Whether this line represents a foreign key field",
+        example=False
+    )
+    seq_no: Optional[int] = Field(
+        default=None,
+        description="Display sequence number for ordering lines",
+        example=1
     )
     
     class Config:
@@ -279,8 +304,13 @@ class LineCreate(BaseModel):
         example=False
     )
     iskeyfield: Optional[bool] = Field(
-        default=False,
+        default=None,
         description="Whether this line represents a key field",
+        example=False
+    )
+    isfkfield: Optional[bool] = Field(
+        default=None,
+        description="Whether this line represents a foreign key field",
         example=False
     )
 
@@ -328,6 +358,11 @@ class LineResponse(BaseModel):
     iskeyfield: bool = Field(
         default=False,
         description="Whether this line represents a key field",
+        example=False
+    )
+    isfkfield: bool = Field(
+        default=False,
+        description="Whether this line represents a foreign key field",
         example=False
     )
     action: str = Field(
