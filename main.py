@@ -256,6 +256,51 @@ def generate_mapped_schema(db: Session) -> Dict[str, Any]:
         "total_mapped_columns": sum(len(table["columns"]) for table in tables_list)
     }
 
+# Helper function to generate upload config JSON from category table
+def generate_upload_config(db: Session) -> Dict[str, Any]:
+    """Generate upload config JSON from category table sorted by line_no (seq_no)"""
+    
+    # Get all categories ordered by seq_no (line_no)
+    categories = db.query(Category).filter(
+        Category.config.isnot(None)  # Only categories with config
+    ).order_by(Category.seq_no.nulls_last(), Category.id).all()
+    
+    upload_order = []
+    
+    for category in categories:
+        # Use category name as set_name
+        set_name = category.Name
+        
+        # Parse the config JSON to get table configuration
+        config = category.config
+        
+        # Ensure config is a dictionary
+        if not isinstance(config, dict):
+            # Skip categories with invalid config
+            continue
+        
+        # Create the table entry from config
+        table_entry = {
+            "table": config.get("table", " *** UNKNOWN *** "),
+            "batch_size": config.get("batch_size", 1),
+            "endpoint": config.get("endpoint", " *** UNKNOWN *** "),
+            "related_tables": config.get("related_tables", None)
+        }
+        
+        # Create the set entry
+        set_entry = {
+            "set_name": set_name,
+            "tables": [table_entry]
+        }
+        
+        upload_order.append(set_entry)
+    
+    return {
+        "upload_order": upload_order,
+        "generated_at": datetime.utcnow().isoformat() + "Z",
+        "total_sets": len(upload_order)
+    }
+
 @app.get(
     "/",
     tags=["Root"],
@@ -1873,6 +1918,102 @@ async def download_schema(db: Session = Depends(get_db)):
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error generating schema: {str(e)}")
+
+@api_router.get(
+    "/download-upload-config",
+    tags=["Schema Export"],
+    summary="Download Upload Configuration",
+    description="Generate and download an upload configuration JSON file from category table configs",
+    responses={
+        200: {
+            "description": "Upload config file successfully generated and downloaded",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "upload_order": [
+                            {
+                                "set_name": "User Access",
+                                "tables": [
+                                    {
+                                        "table": " *** UNKNOWN *** ",
+                                        "batch_size": 1,
+                                        "endpoint": " *** UNKNOWN *** ",
+                                        "related_tables": None
+                                    }
+                                ]
+                            },
+                            {
+                                "set_name": "Generalized Codes",
+                                "tables": [
+                                    {
+                                        "table": "generalizedCodes",
+                                        "batch_size": 1,
+                                        "endpoint": "api/bcom/load?entityUri=urn:be:com.qad.base.codes.IGeneralizedCode",
+                                        "related_tables": [
+                                            {
+                                                "table": "connectionGCDomains",
+                                                "relation_fields": ["domainCode", "fieldName", "codeValue"],
+                                                "parent_fields": ["domainCode", "fieldName", "codeValue"],
+                                                "nested_as": "connectionGCDomains"
+                                            }
+                                        ]
+                                    }
+                                ]
+                            }
+                        ],
+                        "generated_at": "2024-01-15T10:30:00Z",
+                        "total_sets": 2
+                    }
+                }
+            },
+            "headers": {
+                "Content-Disposition": "attachment; filename=upload-config_20240115_103000.json",
+                "Content-Type": "application/json"
+            }
+        },
+        500: {
+            "description": "Error generating upload config",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Error generating upload config: Database connection failed"}
+                }
+            }
+        }
+    }
+)
+async def download_upload_config(db: Session = Depends(get_db)):
+    """
+    **Download upload configuration**
+    
+    Generates and downloads a JSON file containing upload configuration based on
+    category table configs. The configuration is ordered by category sequence number
+    (line_no) and includes:
+    
+    - Upload order sets based on category names
+    - Table configurations from category config JSON
+    - Batch sizes and endpoints for each table
+    - Related tables information
+    
+    The file is automatically named with a timestamp for version tracking.
+    """
+    try:
+        # Generate the upload config
+        config_data = generate_upload_config(db)
+        
+        # Create filename with timestamp
+        timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        filename = f"upload-config_{timestamp}.json"
+        
+        # Return as JSON download
+        return JSONResponse(
+            content=config_data,
+            headers={
+                "Content-Disposition": f"attachment; filename={filename}",
+                "Content-Type": "application/json"
+            }
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error generating upload config: {str(e)}")
 
 # Include the API router
 app.include_router(api_router)
