@@ -42,6 +42,11 @@ class Category(CategoryBase):
         description="Configuration settings for this category as JSON",
         example={"theme": "blue", "enabled": True}
     )
+    isaiload: bool = Field(
+        default=False,
+        description="Whether this category is an AI load category",
+        example=False
+    )
     
     class Config:
         from_attributes = True
@@ -69,6 +74,11 @@ class CategoryConfigResponse(BaseModel):
         default=None,
         description="Configuration settings for this category as JSON",
         example={"theme": "blue", "enabled": True}
+    )
+    isaiload: bool = Field(
+        default=False,
+        description="Whether this category is an AI load category",
+        example=False
     )
     message: str = Field(
         ...,

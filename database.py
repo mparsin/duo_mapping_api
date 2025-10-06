@@ -28,6 +28,7 @@ class Category(Base):
     seq_no = Column(Integer, nullable=True)
     epic = Column(String(200), nullable=True)
     config = Column(JSON, nullable=True)
+    isaiload = Column(Boolean, default=False, nullable=False)
     
     # Relationships
     lines = relationship("Lines", back_populates="category")

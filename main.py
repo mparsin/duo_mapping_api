@@ -225,6 +225,7 @@ def generate_mapped_schema(db: Session) -> Dict[str, Any]:
                 "sub_category": line.sub_category.name if line.sub_category else None,
                 "group": line.category.tab if line.category else None,
                 "epic": line.category.epic if line.category else None,
+                "isaiload": line.category.isaiload if line.category else None,
                 "iskeyfield": line.iskeyfield,
                 "isfkfield": line.isfkfield
             }
@@ -299,7 +300,8 @@ async def root():
                             "percent_mapped": 75.5,
                             "tab": "customers",
                             "seq_no": 1,
-                            "epic": "Data Migration"
+                            "epic": "Data Migration",
+                            "isaiload": False
                         }
                     ]
                 }
@@ -337,7 +339,8 @@ async def get_categories(db: Session = Depends(get_db)):
                         "percent_mapped": 75.5,
                         "tab": "customers",
                         "seq_no": 1,
-                        "epic": "Data Migration"
+                        "epic": "Data Migration",
+                        "isaiload": False
                     }
                 }
             }
@@ -380,6 +383,7 @@ async def get_category(category_id: int, db: Session = Depends(get_db)):
                         "id": 1,
                         "Name": "Customer Data",
                         "config": {"theme": "blue", "enabled": True, "settings": {"auto_save": True}},
+                        "isaiload": False,
                         "message": "Config successfully updated"
                     }
                 }
@@ -432,6 +436,7 @@ async def update_category_config(
             id=category.id,
             Name=category.Name,
             config=category.config,
+            isaiload=category.isaiload,
             message="Config successfully updated"
         )
     except Exception as e:
@@ -453,6 +458,7 @@ async def update_category_config(
                         "id": 1,
                         "Name": "Customer Data",
                         "config": {"theme": "blue", "enabled": True, "settings": {"auto_save": True}},
+                        "isaiload": False,
                         "message": "Config successfully created"
                     }
                 }
@@ -520,6 +526,7 @@ async def create_category_config(
             id=category.id,
             Name=category.Name,
             config=category.config,
+            isaiload=category.isaiload,
             message="Config successfully created"
         )
     except Exception as e:
@@ -588,6 +595,7 @@ async def delete_category_config(
         id=category.id,
         Name=category.Name,
         config=category.config,
+        isaiload=category.isaiload,
         message="Config successfully deleted"
     )
 
