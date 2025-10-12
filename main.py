@@ -259,7 +259,7 @@ def generate_mapped_schema(db: Session) -> Dict[str, Any]:
 
 # Helper function to generate upload config JSON from category table
 def generate_upload_config(db: Session) -> Dict[str, Any]:
-    """Generate upload config JSON from category table grouped by table sets"""
+    """Generate upload config JSON from category table grouped by table sets, ordered by table_set id"""
     
     # Get all categories with both config and table_set_id, ordered by seq_no (line_no)
     categories = db.query(Category).filter(
@@ -282,17 +282,10 @@ def generate_upload_config(db: Session) -> Dict[str, Any]:
         # Initialize group if not exists
         if table_set_id not in table_set_groups:
             table_set_groups[table_set_id] = {
+                "table_set_id": table_set_id,
                 "set_name": category.table_set.name,
-                "tables": [],
-                "min_seq_no": category.seq_no if category.seq_no is not None else float('inf')
+                "tables": []
             }
-        
-        # Update min_seq_no for ordering sets
-        if category.seq_no is not None:
-            table_set_groups[table_set_id]["min_seq_no"] = min(
-                table_set_groups[table_set_id]["min_seq_no"],
-                category.seq_no
-            )
         
         # Parse the config JSON to get table configuration
         config = category.config
@@ -313,9 +306,9 @@ def generate_upload_config(db: Session) -> Dict[str, Any]:
         # Add table to this set's tables list
         table_set_groups[table_set_id]["tables"].append(table_entry)
     
-    # Convert to list and sort by min_seq_no
+    # Convert to list and sort by table_set_id
     upload_order = []
-    for table_set_data in sorted(table_set_groups.values(), key=lambda x: x["min_seq_no"]):
+    for table_set_data in sorted(table_set_groups.values(), key=lambda x: x["table_set_id"]):
         set_entry = {
             "set_name": table_set_data["set_name"],
             "tables": table_set_data["tables"]
@@ -2027,7 +2020,8 @@ async def download_upload_config(db: Session = Depends(get_db)):
     - Table configurations from category config JSON
     - Batch sizes and endpoints for each table
     - Related tables information
-    - Ordering by category sequence number (seq_no) within each set
+    - Sets ordered by table_set id (ascending)
+    - Tables within each set ordered by category sequence number (seq_no)
     
     **Note**: Only categories with both a config and table_set_id will be included.
     Categories without a table_set assignment are excluded.
