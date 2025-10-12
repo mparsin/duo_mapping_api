@@ -259,7 +259,7 @@ def generate_mapped_schema(db: Session) -> Dict[str, Any]:
 
 # Helper function to generate upload config JSON from category table
 def generate_upload_config(db: Session) -> Dict[str, Any]:
-    """Generate upload config JSON from category table grouped by table sets, ordered by table_set id"""
+    """Generate upload config JSON from category table grouped by table sets (ordered by table_set id), with tables ordered by category line_no"""
     
     # Get all categories with both config and table_set_id, ordered by seq_no (line_no)
     categories = db.query(Category).filter(
@@ -295,12 +295,13 @@ def generate_upload_config(db: Session) -> Dict[str, Any]:
             # Skip categories with invalid config
             continue
         
-        # Create the table entry from config
+        # Create the table entry from config with line_no for sorting
         table_entry = {
             "table": config.get("table", " *** UNKNOWN *** "),
             "batch_size": config.get("batch_size", 1),
             "endpoint": config.get("endpoint", " *** UNKNOWN *** "),
-            "related_tables": config.get("related_tables", None)
+            "related_tables": config.get("related_tables", None),
+            "line_no": category.line_no if category.line_no is not None else float('inf')  # For sorting
         }
         
         # Add table to this set's tables list
@@ -309,9 +310,23 @@ def generate_upload_config(db: Session) -> Dict[str, Any]:
     # Convert to list and sort by table_set_id
     upload_order = []
     for table_set_data in sorted(table_set_groups.values(), key=lambda x: x["table_set_id"]):
+        # Sort tables within this set by line_no
+        sorted_tables = sorted(table_set_data["tables"], key=lambda t: t["line_no"])
+        
+        # Remove line_no from final output (it was only needed for sorting)
+        final_tables = []
+        for table in sorted_tables:
+            final_table = {
+                "table": table["table"],
+                "batch_size": table["batch_size"],
+                "endpoint": table["endpoint"],
+                "related_tables": table["related_tables"]
+            }
+            final_tables.append(final_table)
+        
         set_entry = {
             "set_name": table_set_data["set_name"],
-            "tables": table_set_data["tables"]
+            "tables": final_tables
         }
         upload_order.append(set_entry)
     
@@ -2021,7 +2036,7 @@ async def download_upload_config(db: Session = Depends(get_db)):
     - Batch sizes and endpoints for each table
     - Related tables information
     - Sets ordered by table_set id (ascending)
-    - Tables within each set ordered by category sequence number (seq_no)
+    - Tables within each set ordered by category line_no (ascending)
     
     **Note**: Only categories with both a config and table_set_id will be included.
     Categories without a table_set assignment are excluded.

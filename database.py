@@ -35,6 +35,7 @@ class Category(Base):
     percent_mapped = Column(Float, default=0.0)
     tab = Column(String(200), nullable=True)
     seq_no = Column(Integer, nullable=True)
+    line_no = Column(Integer, nullable=True)
     epic = Column(String(200), nullable=True)
     config = Column(JSON, nullable=True)
     isaiload = Column(Boolean, default=False, nullable=False)

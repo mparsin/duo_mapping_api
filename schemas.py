@@ -50,6 +50,11 @@ class Category(CategoryBase):
         description="Display sequence number for ordering categories",
         example=1
     )
+    line_no: Optional[int] = Field(
+        default=None,
+        description="Line number for ordering categories within table sets",
+        example=1
+    )
     epic: Optional[str] = Field(
         default=None,
         description="Associated epic or project identifier",
