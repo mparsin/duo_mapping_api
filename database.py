@@ -18,6 +18,15 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
 # Database Models
+class TableSet(Base):
+    __tablename__ = "table_set"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(100))
+    
+    # Relationships
+    categories = relationship("Category", back_populates="table_set")
+
 class Category(Base):
     __tablename__ = "category"
     
@@ -29,10 +38,12 @@ class Category(Base):
     epic = Column(String(200), nullable=True)
     config = Column(JSON, nullable=True)
     isaiload = Column(Boolean, default=False, nullable=False)
+    table_set_id = Column(Integer, ForeignKey("table_set.id"), nullable=True)
     
     # Relationships
     lines = relationship("Lines", back_populates="category")
     sub_categories = relationship("SubCategory", back_populates="category")
+    table_set = relationship("TableSet", back_populates="categories")
 
 class Lines(Base):
     __tablename__ = "lines"

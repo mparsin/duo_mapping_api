@@ -1,6 +1,24 @@
 from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
 
+# TableSet schemas
+class TableSetBase(BaseModel):
+    name: Optional[str] = Field(
+        default=None,
+        description="Table set name",
+        example="Master Data"
+    )
+
+class TableSet(TableSetBase):
+    id: int = Field(
+        ...,
+        description="Unique table set identifier",
+        example=1
+    )
+    
+    class Config:
+        from_attributes = True
+
 # Category schemas
 class CategoryBase(BaseModel):
     Name: str = Field(
@@ -46,6 +64,11 @@ class Category(CategoryBase):
         default=False,
         description="Whether this category is an AI load category",
         example=False
+    )
+    table_set_id: Optional[int] = Field(
+        default=None,
+        description="Associated table set identifier for grouping categories",
+        example=1
     )
     
     class Config:

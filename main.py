@@ -2,7 +2,7 @@ from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session, joinedload
-from database import get_db, Category, Lines, ERPTable, ERPColumn, SubCategory
+from database import get_db, Category, Lines, ERPTable, ERPColumn, SubCategory, TableSet
 from schemas import (
     Category as CategorySchema,
     Lines as LinesSchema,
@@ -17,7 +17,8 @@ from schemas import (
     TableMatchRequest,
     TableMatchResult,
     CategoryConfigUpdate,
-    CategoryConfigResponse
+    CategoryConfigResponse,
+    TableSet as TableSetSchema
 )
 from typing import List, Dict, Any
 from sqlalchemy import func
@@ -258,18 +259,40 @@ def generate_mapped_schema(db: Session) -> Dict[str, Any]:
 
 # Helper function to generate upload config JSON from category table
 def generate_upload_config(db: Session) -> Dict[str, Any]:
-    """Generate upload config JSON from category table sorted by line_no (seq_no)"""
+    """Generate upload config JSON from category table grouped by table sets"""
     
-    # Get all categories ordered by seq_no (line_no)
+    # Get all categories with both config and table_set_id, ordered by seq_no (line_no)
     categories = db.query(Category).filter(
-        Category.config.isnot(None)  # Only categories with config
+        Category.config.isnot(None),  # Only categories with config
+        Category.table_set_id.isnot(None)  # Only categories assigned to a table set
+    ).options(
+        joinedload(Category.table_set)  # Eagerly load table_set relationship
     ).order_by(Category.seq_no.nulls_last(), Category.id).all()
     
-    upload_order = []
+    # Group categories by table_set_id
+    table_set_groups = {}
     
     for category in categories:
-        # Use category name as set_name
-        set_name = category.Name
+        # Skip if table_set is not loaded (shouldn't happen with filter above)
+        if not category.table_set:
+            continue
+        
+        table_set_id = category.table_set_id
+        
+        # Initialize group if not exists
+        if table_set_id not in table_set_groups:
+            table_set_groups[table_set_id] = {
+                "set_name": category.table_set.name,
+                "tables": [],
+                "min_seq_no": category.seq_no if category.seq_no is not None else float('inf')
+            }
+        
+        # Update min_seq_no for ordering sets
+        if category.seq_no is not None:
+            table_set_groups[table_set_id]["min_seq_no"] = min(
+                table_set_groups[table_set_id]["min_seq_no"],
+                category.seq_no
+            )
         
         # Parse the config JSON to get table configuration
         config = category.config
@@ -287,12 +310,16 @@ def generate_upload_config(db: Session) -> Dict[str, Any]:
             "related_tables": config.get("related_tables", None)
         }
         
-        # Create the set entry
+        # Add table to this set's tables list
+        table_set_groups[table_set_id]["tables"].append(table_entry)
+    
+    # Convert to list and sort by min_seq_no
+    upload_order = []
+    for table_set_data in sorted(table_set_groups.values(), key=lambda x: x["min_seq_no"]):
         set_entry = {
-            "set_name": set_name,
-            "tables": [table_entry]
+            "set_name": table_set_data["set_name"],
+            "tables": table_set_data["tables"]
         }
-        
         upload_order.append(set_entry)
     
     return {
@@ -1923,7 +1950,7 @@ async def download_schema(db: Session = Depends(get_db)):
     "/download-upload-config",
     tags=["Schema Export"],
     summary="Download Upload Configuration",
-    description="Generate and download an upload configuration JSON file from category table configs",
+    description="Generate and download an upload configuration JSON file grouped by table sets",
     responses={
         200: {
             "description": "Upload config file successfully generated and downloaded",
@@ -1932,18 +1959,7 @@ async def download_schema(db: Session = Depends(get_db)):
                     "example": {
                         "upload_order": [
                             {
-                                "set_name": "User Access",
-                                "tables": [
-                                    {
-                                        "table": " *** UNKNOWN *** ",
-                                        "batch_size": 1,
-                                        "endpoint": " *** UNKNOWN *** ",
-                                        "related_tables": None
-                                    }
-                                ]
-                            },
-                            {
-                                "set_name": "Generalized Codes",
+                                "set_name": "Master Data",
                                 "tables": [
                                     {
                                         "table": "generalizedCodes",
@@ -1957,6 +1973,23 @@ async def download_schema(db: Session = Depends(get_db)):
                                                 "nested_as": "connectionGCDomains"
                                             }
                                         ]
+                                    },
+                                    {
+                                        "table": "users",
+                                        "batch_size": 1,
+                                        "endpoint": "api/users/load",
+                                        "related_tables": None
+                                    }
+                                ]
+                            },
+                            {
+                                "set_name": "Transactional Data",
+                                "tables": [
+                                    {
+                                        "table": "orders",
+                                        "batch_size": 100,
+                                        "endpoint": "api/orders/load",
+                                        "related_tables": None
                                     }
                                 ]
                             }
@@ -1983,16 +2016,21 @@ async def download_schema(db: Session = Depends(get_db)):
 )
 async def download_upload_config(db: Session = Depends(get_db)):
     """
-    **Download upload configuration**
+    **Download upload configuration grouped by table sets**
     
     Generates and downloads a JSON file containing upload configuration based on
-    category table configs. The configuration is ordered by category sequence number
-    (line_no) and includes:
+    table sets and category configs. Categories are grouped by their assigned table_set,
+    and the configuration includes:
     
-    - Upload order sets based on category names
+    - Upload order sets based on table_set names
+    - Multiple tables grouped under each set (from categories with the same table_set_id)
     - Table configurations from category config JSON
     - Batch sizes and endpoints for each table
     - Related tables information
+    - Ordering by category sequence number (seq_no) within each set
+    
+    **Note**: Only categories with both a config and table_set_id will be included.
+    Categories without a table_set assignment are excluded.
     
     The file is automatically named with a timestamp for version tracking.
     """
