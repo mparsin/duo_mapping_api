@@ -23,6 +23,7 @@ from schemas import (
 from typing import List, Dict, Any
 from sqlalchemy import func
 import json
+import hashlib
 from datetime import datetime
 
 # OpenAPI documentation configuration
@@ -172,6 +173,20 @@ def update_category_percent_mapped(db: Session, category_id: int):
     })
     db.commit()
 
+# Helper function to calculate SHA-256 hash of schema content
+def calculate_schema_hash(tables: List[Dict]) -> str:
+    """
+    Calculate SHA-256 hash of the schema tables array.
+    Uses deterministic JSON serialization (sorted keys, no whitespace) to ensure
+    the same schema content always produces the same hash.
+    """
+    # Sort tables by name for consistency
+    sorted_tables = sorted(tables, key=lambda x: x["name"])
+    # Serialize with sorted keys, no whitespace for deterministic output
+    schema_json = json.dumps(sorted_tables, sort_keys=True, separators=(',', ':'))
+    # Calculate SHA-256 hash
+    return hashlib.sha256(schema_json.encode('utf-8')).hexdigest()
+
 # Helper function to generate schema JSON for mapped tables and columns
 def generate_mapped_schema(db: Session) -> Dict[str, Any]:
     """Generate schema JSON containing only tables and columns that have mappings"""
@@ -240,21 +255,28 @@ def generate_mapped_schema(db: Session) -> Dict[str, Any]:
     # Convert to final format (list of tables with columns as list)
     tables_list = []
     for table_data in tables_dict.values():
+        # Sort columns by name for deterministic hash calculation
+        columns_list = list(table_data["columns"].values())
+        columns_list.sort(key=lambda x: x["name"])
         table_entry = {
             "name": table_data["name"],
             "description": table_data["description"],
-            "columns": list(table_data["columns"].values())
+            "columns": columns_list
         }
         tables_list.append(table_entry)
     
     # Sort tables by name for consistent output
     tables_list.sort(key=lambda x: x["name"])
     
+    # Calculate schema version hash (only on actual schema content, excluding metadata)
+    schema_version = calculate_schema_hash(tables_list)
+    
     return {
         "tables": tables_list,
         "generated_at": datetime.utcnow().isoformat() + "Z",
         "total_tables": len(tables_list),
-        "total_mapped_columns": sum(len(table["columns"]) for table in tables_list)
+        "total_mapped_columns": sum(len(table["columns"]) for table in tables_list),
+        "schema_version": schema_version
     }
 
 # Helper function to generate upload config JSON from category table
