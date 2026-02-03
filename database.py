@@ -23,6 +23,7 @@ class TableSet(Base):
     
     id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(String(100))
+    seq_no = Column(Integer, nullable=True)
     
     # Relationships
     categories = relationship("Category", back_populates="table_set")

@@ -8,6 +8,55 @@ class TableSetBase(BaseModel):
         description="Table set name",
         example="Master Data"
     )
+    seq_no: Optional[int] = Field(
+        default=None,
+        description="Display sequence number for ordering table sets (nulls last)",
+        example=1
+    )
+
+class TableSetCreate(BaseModel):
+    name: str = Field(
+        ...,
+        description="Table set name",
+        example="Master Data"
+    )
+    seq_no: Optional[int] = Field(
+        default=None,
+        description="Display sequence number for ordering table sets (nulls last)",
+        example=1
+    )
+
+class TableSetUpdate(BaseModel):
+    name: Optional[str] = Field(
+        default=None,
+        description="Updated table set name",
+        example="Master Data"
+    )
+    seq_no: Optional[int] = Field(
+        default=None,
+        description="Updated display sequence number for ordering table sets (nulls last)",
+        example=1
+    )
+
+class TableSetReorderItem(BaseModel):
+    id: int = Field(
+        ...,
+        description="Unique table set identifier",
+        example=1
+    )
+    seq_no: int = Field(
+        ...,
+        description="New sequence number for ordering table sets",
+        example=10
+    )
+
+class TableSetReorderRequest(BaseModel):
+    items: List[TableSetReorderItem] = Field(
+        ...,
+        description="List of table sets with their desired sequence numbers",
+        min_items=1,
+        example=[{"id": 1, "seq_no": 10}, {"id": 2, "seq_no": 20}]
+    )
 
 class TableSet(TableSetBase):
     id: int = Field(
@@ -78,6 +127,77 @@ class Category(CategoryBase):
     
     class Config:
         from_attributes = True
+
+# Category upload-config editor schemas
+class CategoryUploadMetadataUpdate(BaseModel):
+    Name: Optional[str] = Field(
+        default=None,
+        description="Optional updated category name (used as table label in UI)",
+        example="Customer Master Data"
+    )
+    table_set_id: Optional[int] = Field(
+        default=None,
+        description="Assign category to a table set (null to unassign)",
+        example=1
+    )
+    line_no: Optional[int] = Field(
+        default=None,
+        description="Ordering number for tables within a table set (nulls last)",
+        example=10
+    )
+
+class CategoryUploadOrderItem(BaseModel):
+    category_id: int = Field(
+        ...,
+        description="Category identifier to update",
+        example=123
+    )
+    table_set_id: Optional[int] = Field(
+        default=None,
+        description="Assign category to a table set (null to unassign)",
+        example=1
+    )
+    line_no: Optional[int] = Field(
+        default=None,
+        description="Ordering number for tables within a table set (nulls last)",
+        example=10
+    )
+
+class CategoryUploadOrderRequest(BaseModel):
+    items: List[CategoryUploadOrderItem] = Field(
+        ...,
+        description="Bulk updates to category table-set assignment and ordering",
+        min_items=1,
+        example={
+            "items": [
+                {"category_id": 101, "table_set_id": 1, "line_no": 10},
+                {"category_id": 102, "table_set_id": 1, "line_no": 20},
+                {"category_id": 103, "table_set_id": None, "line_no": None}
+            ]
+        }
+    )
+
+class UploadConfigEditorTable(BaseModel):
+    category_id: int = Field(..., description="Category identifier", example=101)
+    category_name: str = Field(..., description="Category name", example="Users")
+    table_set_id: Optional[int] = Field(default=None, description="Assigned table set id", example=1)
+    line_no: Optional[int] = Field(default=None, description="Order within set (nulls last)", example=10)
+    config: Optional[Dict[str, Any]] = Field(default=None, description="Category config JSON", example={"table": "users", "batch_size": 1, "endpoint": "api/users/load"})
+    table: Optional[str] = Field(default=None, description="Convenience field derived from config.table", example="users")
+    batch_size: Optional[int] = Field(default=None, description="Convenience field derived from config.batch_size", example=1)
+    endpoint: Optional[str] = Field(default=None, description="Convenience field derived from config.endpoint", example="api/users/load")
+    related_tables: Optional[Any] = Field(default=None, description="Convenience field derived from config.related_tables")
+
+class UploadConfigEditorSet(BaseModel):
+    table_set_id: int = Field(..., description="Table set identifier", example=1)
+    set_name: Optional[str] = Field(default=None, description="Table set name", example="Master Data")
+    seq_no: Optional[int] = Field(default=None, description="Table set ordering number (nulls last)", example=10)
+    tables: List[UploadConfigEditorTable] = Field(default=[], description="Tables (categories) assigned to this set")
+
+class UploadConfigEditorResponse(BaseModel):
+    sets: List[UploadConfigEditorSet] = Field(default=[], description="All table sets with their assigned tables")
+    unassigned: List[UploadConfigEditorTable] = Field(default=[], description="Tables (categories) with config but no table_set_id")
+    generated_at: str = Field(..., description="Response generation timestamp (UTC ISO8601)", example="2026-01-29T12:00:00Z")
 
 # Category config schemas
 class CategoryConfigUpdate(BaseModel):

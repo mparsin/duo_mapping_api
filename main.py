@@ -18,7 +18,13 @@ from schemas import (
     TableMatchResult,
     CategoryConfigUpdate,
     CategoryConfigResponse,
-    TableSet as TableSetSchema
+    TableSet as TableSetSchema,
+    TableSetCreate,
+    TableSetUpdate,
+    TableSetReorderRequest,
+    CategoryUploadMetadataUpdate,
+    CategoryUploadOrderRequest,
+    UploadConfigEditorResponse
 )
 from typing import List, Dict, Any
 from sqlalchemy import func
@@ -70,6 +76,10 @@ app = FastAPI(
             "description": "Operations for managing mapping categories and their completion tracking"
         },
         {
+            "name": "Table Sets",
+            "description": "Operations for managing upload-config table sets and their ordering"
+        },
+        {
             "name": "Sub-Categories",
             "description": "Operations for managing category subdivisions and their metadata"
         },
@@ -92,6 +102,10 @@ app = FastAPI(
         {
             "name": "Schema Export",
             "description": "Operations for generating and downloading implementation-ready schemas"
+        },
+        {
+            "name": "Upload Config Editor",
+            "description": "Operations for editing the underlying upload-config generator data"
         },
         {
             "name": "Utilities",
@@ -281,15 +295,22 @@ def generate_mapped_schema(db: Session) -> Dict[str, Any]:
 
 # Helper function to generate upload config JSON from category table
 def generate_upload_config(db: Session) -> Dict[str, Any]:
-    """Generate upload config JSON from category table grouped by table sets (ordered by table_set id), with tables ordered by category line_no"""
+    """Generate upload config JSON from category table grouped by table sets (ordered by table_set seq_no), with tables ordered by category line_no"""
     
-    # Get all categories with both config and table_set_id, ordered by seq_no (line_no)
-    categories = db.query(Category).filter(
+    # Get all categories with both config and table_set_id, ordered for efficient grouping and output
+    categories = db.query(Category).join(
+        TableSet, Category.table_set_id == TableSet.id
+    ).filter(
         Category.config.isnot(None),  # Only categories with config
         Category.table_set_id.isnot(None)  # Only categories assigned to a table set
     ).options(
         joinedload(Category.table_set)  # Eagerly load table_set relationship
-    ).order_by(Category.seq_no.nulls_last(), Category.id).all()
+    ).order_by(
+        TableSet.seq_no.nulls_last(),
+        TableSet.id,
+        Category.line_no.nulls_last(),
+        Category.id
+    ).all()
     
     # Group categories by table_set_id
     table_set_groups = {}
@@ -306,6 +327,7 @@ def generate_upload_config(db: Session) -> Dict[str, Any]:
             table_set_groups[table_set_id] = {
                 "table_set_id": table_set_id,
                 "set_name": category.table_set.name,
+                "set_seq_no": category.table_set.seq_no,
                 "tables": []
             }
         
@@ -329,9 +351,16 @@ def generate_upload_config(db: Session) -> Dict[str, Any]:
         # Add table to this set's tables list
         table_set_groups[table_set_id]["tables"].append(table_entry)
     
-    # Convert to list and sort by table_set_id
+    # Convert to list and sort by table_set ordering (seq_no, id)
     upload_order = []
-    for table_set_data in sorted(table_set_groups.values(), key=lambda x: x["table_set_id"]):
+    for table_set_data in sorted(
+        table_set_groups.values(),
+        key=lambda x: (
+            x["set_seq_no"] is None,
+            x["set_seq_no"] if x["set_seq_no"] is not None else 0,
+            x["table_set_id"]
+        )
+    ):
         # Sort tables within this set by line_no
         sorted_tables = sorted(table_set_data["tables"], key=lambda t: t["line_no"])
         
@@ -469,6 +498,285 @@ async def get_category(category_id: int, db: Session = Depends(get_db)):
     if not category:
         raise HTTPException(status_code=404, detail="Category not found")
     return category
+
+@api_router.patch(
+    "/categories/{category_id}/upload-metadata",
+    response_model=CategorySchema,
+    tags=["Upload Config Editor"],
+    summary="Update Category Upload Metadata",
+    description="Update category upload-config editor fields: table_set_id assignment, table order (line_no), and optional category Name",
+)
+async def update_category_upload_metadata(
+    category_id: int,
+    update: CategoryUploadMetadataUpdate,
+    db: Session = Depends(get_db)
+):
+    category = db.query(Category).filter(Category.id == category_id).first()
+    if not category:
+        raise HTTPException(status_code=404, detail="Category not found")
+
+    try:
+        # Update category name (optional)
+        if "Name" in update.model_fields_set:
+            if update.Name is not None:
+                category.Name = update.Name
+
+        # Update table_set assignment (nullable)
+        if "table_set_id" in update.model_fields_set:
+            if update.table_set_id is None:
+                category.table_set_id = None
+            else:
+                table_set = db.query(TableSet).filter(TableSet.id == update.table_set_id).first()
+                if not table_set:
+                    raise HTTPException(status_code=404, detail="Table set not found")
+                category.table_set_id = update.table_set_id
+
+        # Update line ordering (nullable)
+        if "line_no" in update.model_fields_set:
+            category.line_no = update.line_no
+
+        db.commit()
+        db.refresh(category)
+        return category
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error updating category upload metadata: {str(e)}")
+
+@api_router.patch(
+    "/categories/upload-order",
+    response_model=List[CategorySchema],
+    tags=["Upload Config Editor"],
+    summary="Bulk Update Category Upload Order",
+    description="Bulk update category.table_set_id and category.line_no for upload-config editor operations (drag/drop)",
+)
+async def bulk_update_category_upload_order(request: CategoryUploadOrderRequest, db: Session = Depends(get_db)):
+    try:
+        category_ids = [item.category_id for item in request.items]
+
+        categories = db.query(Category).filter(Category.id.in_(category_ids)).all()
+        categories_by_id = {c.id: c for c in categories}
+
+        missing_category_ids = [cid for cid in category_ids if cid not in categories_by_id]
+        if missing_category_ids:
+            raise HTTPException(status_code=404, detail=f"Category(ies) not found: {missing_category_ids}")
+
+        # Validate table_set_ids (ignore nulls and omitted)
+        requested_table_set_ids = set()
+        for item in request.items:
+            if "table_set_id" in item.model_fields_set and item.table_set_id is not None:
+                requested_table_set_ids.add(item.table_set_id)
+
+        if requested_table_set_ids:
+            existing_ts = db.query(TableSet.id).filter(TableSet.id.in_(list(requested_table_set_ids))).all()
+            existing_ts_ids = {row[0] for row in existing_ts}
+            missing_ts = [tsid for tsid in requested_table_set_ids if tsid not in existing_ts_ids]
+            if missing_ts:
+                raise HTTPException(status_code=404, detail=f"Table set(s) not found: {missing_ts}")
+
+        # Apply updates
+        for item in request.items:
+            category = categories_by_id[item.category_id]
+
+            if "table_set_id" in item.model_fields_set:
+                category.table_set_id = item.table_set_id  # may be null (unassign)
+
+            if "line_no" in item.model_fields_set:
+                category.line_no = item.line_no  # may be null
+
+        db.commit()
+
+        # Return updated categories ordered consistently for UI convenience
+        updated = db.query(Category).filter(Category.id.in_(category_ids)).order_by(Category.table_set_id.nulls_last(), Category.line_no.nulls_last(), Category.id).all()
+        return updated
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error bulk updating category upload order: {str(e)}")
+
+@api_router.get(
+    "/upload-config/editor",
+    response_model=UploadConfigEditorResponse,
+    tags=["Upload Config Editor"],
+    summary="Get Upload Config Editor Data",
+    description="Return an editor-friendly view of table sets and their tables (categories) including IDs, ordering, and config.",
+)
+async def get_upload_config_editor(db: Session = Depends(get_db)):
+    # All sets, even if empty
+    table_sets = db.query(TableSet).order_by(TableSet.seq_no.nulls_last(), TableSet.id).all()
+
+    # Categories that have upload-config config (assigned or unassigned)
+    # Filter to AI-load categories only (UI requirement)
+    categories = db.query(Category).filter(
+        Category.config.isnot(None),
+        Category.isaiload == True
+    ).options(joinedload(Category.table_set)).all()
+
+    categories_by_set = {}
+    unassigned = []
+
+    for category in categories:
+        cfg = category.config if isinstance(category.config, dict) else None
+        table = cfg.get("table") if cfg else None
+        batch_size = cfg.get("batch_size") if cfg else None
+        endpoint = cfg.get("endpoint") if cfg else None
+        related_tables = cfg.get("related_tables") if cfg else None
+
+        entry = {
+            "category_id": category.id,
+            "category_name": category.Name,
+            "table_set_id": category.table_set_id,
+            "line_no": category.line_no,
+            "config": category.config,
+            "table": table,
+            "batch_size": batch_size,
+            "endpoint": endpoint,
+            "related_tables": related_tables
+        }
+
+        if category.table_set_id is None:
+            unassigned.append(entry)
+            continue
+
+        if category.table_set_id not in categories_by_set:
+            categories_by_set[category.table_set_id] = []
+        categories_by_set[category.table_set_id].append(entry)
+
+    # Sort unassigned by line_no then id
+    unassigned.sort(key=lambda x: (x["line_no"] is None, x["line_no"] if x["line_no"] is not None else 0, x["category_id"]))
+
+    sets = []
+    for ts in table_sets:
+        tables = categories_by_set.get(ts.id, [])
+        tables.sort(key=lambda x: (x["line_no"] is None, x["line_no"] if x["line_no"] is not None else 0, x["category_id"]))
+
+        sets.append({
+            "table_set_id": ts.id,
+            "set_name": ts.name,
+            "seq_no": ts.seq_no,
+            "tables": tables
+        })
+
+    return {
+        "sets": sets,
+        "unassigned": unassigned,
+        "generated_at": datetime.utcnow().isoformat() + "Z"
+    }
+
+@api_router.get(
+    "/table-sets",
+    response_model=List[TableSetSchema],
+    tags=["Table Sets"],
+    summary="Get All Table Sets",
+    description="Retrieve all table sets ordered by seq_no (nulls last), then by id",
+)
+async def get_table_sets(db: Session = Depends(get_db)):
+    table_sets = db.query(TableSet).order_by(TableSet.seq_no.nulls_last(), TableSet.id).all()
+    return table_sets
+
+@api_router.post(
+    "/table-sets",
+    response_model=TableSetSchema,
+    tags=["Table Sets"],
+    summary="Create Table Set",
+    description="Create a new table set (optionally with an explicit seq_no for ordering)",
+)
+async def create_table_set(table_set_data: TableSetCreate, db: Session = Depends(get_db)):
+    try:
+        table_set = TableSet(name=table_set_data.name, seq_no=table_set_data.seq_no)
+        db.add(table_set)
+        db.commit()
+        db.refresh(table_set)
+        return table_set
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error creating table set: {str(e)}")
+
+@api_router.patch(
+    "/table-sets/{table_set_id}",
+    response_model=TableSetSchema,
+    tags=["Table Sets"],
+    summary="Update Table Set",
+    description="Update a table set's name and/or seq_no",
+)
+async def update_table_set(table_set_id: int, table_set_data: TableSetUpdate, db: Session = Depends(get_db)):
+    table_set = db.query(TableSet).filter(TableSet.id == table_set_id).first()
+    if not table_set:
+        raise HTTPException(status_code=404, detail="Table set not found")
+
+    try:
+        if table_set_data.name is not None:
+            table_set.name = table_set_data.name
+        if table_set_data.seq_no is not None:
+            table_set.seq_no = table_set_data.seq_no
+
+        db.commit()
+        db.refresh(table_set)
+        return table_set
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error updating table set: {str(e)}")
+
+@api_router.patch(
+    "/table-sets/reorder",
+    response_model=List[TableSetSchema],
+    tags=["Table Sets"],
+    summary="Reorder Table Sets",
+    description="Bulk update seq_no for multiple table sets",
+)
+async def reorder_table_sets(request: TableSetReorderRequest, db: Session = Depends(get_db)):
+    try:
+        # Validate all IDs exist first
+        ids = [item.id for item in request.items]
+        existing = db.query(TableSet.id).filter(TableSet.id.in_(ids)).all()
+        existing_ids = {row[0] for row in existing}
+        missing = [i for i in ids if i not in existing_ids]
+        if missing:
+            raise HTTPException(status_code=404, detail=f"Table set(s) not found: {missing}")
+
+        for item in request.items:
+            db.query(TableSet).filter(TableSet.id == item.id).update({TableSet.seq_no: item.seq_no})
+
+        db.commit()
+
+        updated = db.query(TableSet).filter(TableSet.id.in_(ids)).order_by(TableSet.seq_no.nulls_last(), TableSet.id).all()
+        return updated
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error reordering table sets: {str(e)}")
+
+@api_router.delete(
+    "/table-sets/{table_set_id}",
+    tags=["Table Sets"],
+    summary="Delete Table Set",
+    description="Delete a table set. Deletion is rejected if any categories are still assigned to it.",
+)
+async def delete_table_set(table_set_id: int, db: Session = Depends(get_db)):
+    table_set = db.query(TableSet).filter(TableSet.id == table_set_id).first()
+    if not table_set:
+        raise HTTPException(status_code=404, detail="Table set not found")
+
+    assigned_count = db.query(func.count(Category.id)).filter(Category.table_set_id == table_set_id).scalar()
+    if assigned_count and assigned_count > 0:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot delete table set {table_set_id}: {assigned_count} categories are still assigned. Unassign them first."
+        )
+
+    try:
+        db.delete(table_set)
+        db.commit()
+        return {"message": f"Table set {table_set_id} deleted"}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error deleting table set: {str(e)}")
 
 @api_router.patch(
     "/categories/{category_id}/config",
