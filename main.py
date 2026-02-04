@@ -8,7 +8,9 @@ from schemas import (
     Lines as LinesSchema,
     ERPTable as ERPTableSchema,
     ERPColumn as ERPColumnSchema,
-    LineCreate,
+    ERPColumnCommentResponse,
+    LineCreateRequest,
+    LineUpdate,
     LineResponse,
     SubCategory as SubCategorySchema,
     SubCategoryUpdate,
@@ -1125,6 +1127,146 @@ async def get_lines_by_category(category_id: int, db: Session = Depends(get_db))
     
     return result
 
+
+def _line_to_dict(line) -> Dict[str, Any]:
+    """Build the same dict shape as list items for a single Lines ORM instance (with erp_table, erp_column loaded)."""
+    return {
+        "id": line.id,
+        "categoryid": line.categoryid,
+        "default": line.default,
+        "customer_settings": line.customer_settings,
+        "no_of_chars": line.no_of_chars,
+        "field_name": line.field_name,
+        "reason": line.reason,
+        "name": line.name,
+        "comment": line.comment,
+        "sub_category_id": line.sub_category_id,
+        "table_id": line.table_id,
+        "column_id": line.column_id,
+        "table_name": line.erp_table.name if line.erp_table else None,
+        "column_name": line.erp_column.name if line.erp_column else None,
+        "exclude": line.exclude,
+        "iskeyfield": line.iskeyfield,
+        "isfkfield": line.isfkfield,
+        "seq_no": line.seq_no
+    }
+
+
+@api_router.post(
+    "/categories/{category_id}/lines",
+    response_model=LinesSchema,
+    status_code=201,
+    tags=["Lines"],
+    summary="Create Line",
+    description="Create a new mapping line under a category",
+    responses={
+        201: {
+            "description": "Line successfully created",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "id": 1,
+                        "categoryid": 1,
+                        "name": "Customer Name",
+                        "field_name": "customer_name",
+                        "sub_category_id": 1,
+                        "table_id": 5,
+                        "column_id": 23,
+                        "table_name": "customers",
+                        "column_name": "full_name",
+                        "exclude": False,
+                        "iskeyfield": False,
+                        "isfkfield": False,
+                        "seq_no": 1
+                    }
+                }
+            }
+        },
+        404: {
+            "description": "Category not found",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Category not found"}
+                }
+            }
+        },
+        400: {
+            "description": "Invalid sub_category or table/column",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Sub-category does not belong to this category"}
+                }
+            }
+        }
+    }
+)
+async def create_line(category_id: int, body: LineCreateRequest, db: Session = Depends(get_db)):
+    """
+    **Create a new mapping line**
+
+    Creates a new line under the given category. Category is taken from the path.
+    Optionally assign sub_category, table/column mapping, and other metadata.
+    """
+    category = db.query(Category).filter(Category.id == category_id).first()
+    if not category:
+        raise HTTPException(status_code=404, detail="Category not found")
+
+    if body.sub_category_id is not None:
+        sub_cat = db.query(SubCategory).filter(
+            SubCategory.id == body.sub_category_id,
+            SubCategory.category_id == category_id
+        ).first()
+        if not sub_cat:
+            raise HTTPException(
+                status_code=400,
+                detail="Sub-category not found or does not belong to this category"
+            )
+
+    table_id = body.table_id if (body.table_id and body.table_id != 0) else None
+    column_id = body.column_id if (body.column_id and body.column_id != 0) else None
+
+    if table_id is not None:
+        table = db.query(ERPTable).filter(ERPTable.id == table_id).first()
+        if not table:
+            raise HTTPException(status_code=404, detail="ERP table not found")
+        if column_id is not None:
+            column = db.query(ERPColumn).filter(ERPColumn.id == column_id).first()
+            if not column:
+                raise HTTPException(status_code=404, detail="ERP column not found")
+            if column.table_id != table_id:
+                raise HTTPException(status_code=400, detail="Column does not belong to the specified table")
+
+    new_line = Lines(
+        categoryid=category_id,
+        name=body.name,
+        sub_category_id=body.sub_category_id,
+        field_name=body.field_name,
+        default=body.default,
+        reason=body.reason,
+        comment=body.comment,
+        seq_no=body.seq_no,
+        customer_settings=body.customer_settings,
+        no_of_chars=body.no_of_chars,
+        table_id=table_id,
+        column_id=column_id,
+        exclude=body.exclude if body.exclude is not None else False,
+        iskeyfield=body.iskeyfield if body.iskeyfield is not None else False,
+        isfkfield=body.isfkfield if body.isfkfield is not None else False,
+    )
+    db.add(new_line)
+    db.commit()
+    db.refresh(new_line)
+
+    update_category_percent_mapped(db, category_id)
+
+    updated_line = db.query(Lines).options(
+        joinedload(Lines.erp_table),
+        joinedload(Lines.erp_column)
+    ).filter(Lines.id == new_line.id).first()
+
+    return _line_to_dict(updated_line)
+
+
 @api_router.get(
     "/tables",
     response_model=List[ERPTableSchema],
@@ -1217,12 +1359,159 @@ async def get_erp_columns_by_table(table_id: int, db: Session = Depends(get_db))
     columns = db.query(ERPColumn).filter(ERPColumn.table_id == table_id).all()
     return columns
 
+
+@api_router.get(
+    "/column-comment",
+    response_model=ERPColumnCommentResponse,
+    tags=["Columns"],
+    summary="Get ERP column comment",
+    description="Return the ERP column comment for a given table name and column name. Lookup is case-insensitive.",
+    responses={
+        200: {
+            "description": "ERP column comment successfully retrieved",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "table_name": "customers",
+                        "column_name": "full_name",
+                        "comment": "Full customer name",
+                        "table_id": 5,
+                        "column_id": 23
+                    }
+                }
+            }
+        },
+        400: {
+            "description": "Missing or empty table_name or column_name",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "table_name and column_name are required and cannot be empty"}
+                }
+            }
+        },
+        404: {
+            "description": "ERP column not found",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "ERP column not found"}
+                }
+            }
+        }
+    }
+)
+async def get_erp_column_comment(
+    table_name: str,
+    column_name: str,
+    db: Session = Depends(get_db)
+):
+    """
+    **Get ERP column comment by table name and column name**
+
+    Returns the comment (description) for an ERP column identified by table name and column name.
+    Lookup is case-insensitive.
+
+    - **table_name**: ERP table name
+    - **column_name**: ERP column name
+    """
+    if not table_name or not table_name.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="table_name and column_name are required and cannot be empty"
+        )
+    if not column_name or not column_name.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="table_name and column_name are required and cannot be empty"
+        )
+    table_key = table_name.strip().lower()
+    column_key = column_name.strip().lower()
+    row = (
+        db.query(ERPColumn, ERPTable)
+        .join(ERPTable, ERPColumn.table_id == ERPTable.id)
+        .filter(
+            func.lower(ERPTable.name) == table_key,
+            func.lower(ERPColumn.name) == column_key,
+        )
+        .first()
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="ERP column not found")
+    column, table = row
+    return ERPColumnCommentResponse(
+        table_name=table.name,
+        column_name=column.name,
+        comment=column.comment,
+        table_id=table.id,
+        column_id=column.id,
+    )
+
+
+@api_router.get(
+    "/lines/{line_id}",
+    response_model=LinesSchema,
+    tags=["Lines"],
+    summary="Get Line by ID",
+    description="Retrieve a single mapping line by ID with table and column information",
+    responses={
+        200: {
+            "description": "Line successfully retrieved",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "id": 1,
+                        "categoryid": 1,
+                        "default": "John Doe",
+                        "customer_settings": "required",
+                        "no_of_chars": "50",
+                        "field_name": "customer_name",
+                        "reason": "Primary customer identifier",
+                        "name": "Customer Name",
+                        "comment": "Full customer name",
+                        "sub_category_id": 1,
+                        "table_id": 5,
+                        "column_id": 23,
+                        "table_name": "customers",
+                        "column_name": "full_name",
+                        "exclude": False,
+                        "iskeyfield": True,
+                        "isfkfield": False,
+                        "seq_no": 1
+                    }
+                }
+            }
+        },
+        404: {
+            "description": "Line not found",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Line not found"}
+                }
+            }
+        }
+    }
+)
+async def get_line(line_id: int, db: Session = Depends(get_db)):
+    """
+    **Get a single mapping line**
+
+    Returns one line by ID with ERP table and column names loaded.
+    Useful for edit UIs.
+    """
+    line = db.query(Lines).options(
+        joinedload(Lines.erp_table),
+        joinedload(Lines.erp_column)
+    ).filter(Lines.id == line_id).first()
+    if not line:
+        raise HTTPException(status_code=404, detail="Line not found")
+    return _line_to_dict(line)
+
+
 @api_router.patch(
     "/lines/{line_id}",
     response_model=LineResponse,
     tags=["Lines"],
-    summary="Update Line Mapping",
-    description="Update an existing line mapping with new table/column assignments and comments",
+    summary="Update Line",
+    description="Partially update an existing line (metadata and/or table/column mapping). All request fields are optional.",
     responses={
         200: {
             "description": "Line successfully updated",
@@ -1253,7 +1542,7 @@ async def get_erp_columns_by_table(table_id: int, db: Session = Depends(get_db))
             }
         },
         400: {
-            "description": "Invalid mapping (column doesn't belong to table)",
+            "description": "Invalid sub_category or mapping (column doesn't belong to table)",
             "content": {
                 "application/json": {
                     "example": {"detail": "Column does not belong to the specified table"}
@@ -1262,113 +1551,112 @@ async def get_erp_columns_by_table(table_id: int, db: Session = Depends(get_db))
         }
     }
 )
-async def update_line(line_id: int, line_data: LineCreate, db: Session = Depends(get_db)):
+async def update_line(line_id: int, line_data: LineUpdate, db: Session = Depends(get_db)):
     """
-    **Update line mapping**
-    
-    Updates an existing line with new table/column mappings and comments.
-    
-    - **line_id**: Unique identifier for the line to update
-    - **line_data**: Update data (table_id, column_id, comment)
-    
-    Special behaviors:
-    - Setting table_id to null/0 clears both table and column mappings
-    - Setting column_id to 0 clears only the column mapping
-    - Validates that columns belong to the specified table
+    **Update line (partial update)**
+
+    Updates an existing line. Send only the fields you want to change.
+    - Metadata: name, field_name, default, reason, comment, seq_no, customer_settings, no_of_chars, sub_category_id
+    - Mapping: table_id, column_id (set table_id to 0 or null to clear mapping; column_id to 0 to clear column only)
+    - Flags: exclude, iskeyfield, isfkfield
+
+    Validates that sub_category belongs to the line's category and that column belongs to the specified table.
     """
-    # Find the line by ID
     existing_line = db.query(Lines).filter(Lines.id == line_id).first()
     if not existing_line:
         raise HTTPException(status_code=404, detail="Line not found")
-    
-    # Handle comment update (can be done independently of table/column updates)
+
+    # Apply metadata fields when provided
+    if line_data.name is not None:
+        existing_line.name = line_data.name
+    if line_data.field_name is not None:
+        existing_line.field_name = line_data.field_name
+    if line_data.default is not None:
+        existing_line.default = line_data.default
+    if line_data.reason is not None:
+        existing_line.reason = line_data.reason
     if line_data.comment is not None:
         existing_line.comment = line_data.comment
-    
-    # Handle exclude update (can be done independently of table/column updates)
+    if line_data.seq_no is not None:
+        existing_line.seq_no = line_data.seq_no
+    if line_data.customer_settings is not None:
+        existing_line.customer_settings = line_data.customer_settings
+    if line_data.no_of_chars is not None:
+        existing_line.no_of_chars = line_data.no_of_chars
+
+    if line_data.sub_category_id is not None:
+        sub_cat = db.query(SubCategory).filter(
+            SubCategory.id == line_data.sub_category_id,
+            SubCategory.category_id == existing_line.categoryid
+        ).first()
+        if not sub_cat:
+            raise HTTPException(
+                status_code=400,
+                detail="Sub-category not found or does not belong to this category"
+            )
+        existing_line.sub_category_id = line_data.sub_category_id
+
     if line_data.exclude is not None:
         existing_line.exclude = line_data.exclude
-    
-    # Handle iskeyfield update (can be done independently of table/column updates)
     if line_data.iskeyfield is not None:
         existing_line.iskeyfield = line_data.iskeyfield
-    
-    # Handle isfkfield update (can be done independently of table/column updates)
     if line_data.isfkfield is not None:
         existing_line.isfkfield = line_data.isfkfield
-    
-    # Handle table_id clearing logic
-    if line_data.table_id is None or line_data.table_id == 0:
-        # Clear table_id and column_id for the specific line only
-        existing_line.table_id = None
-        existing_line.column_id = None
-        db.commit()
-        
-        # Update percent_mapped for the category
-        update_category_percent_mapped(db, existing_line.categoryid)
-        
-        # Load the updated line for response
-        updated_line = db.query(Lines).options(
-            joinedload(Lines.erp_table),
-            joinedload(Lines.erp_column)
-        ).filter(Lines.id == existing_line.id).first()
-        
-        return {
-            "id": updated_line.id,
-            "categoryid": updated_line.categoryid,
-            "table_id": updated_line.table_id,
-            "column_id": updated_line.column_id,
-            "table_name": updated_line.erp_table.name if updated_line.erp_table else None,
-            "column_name": updated_line.erp_column.name if updated_line.erp_column else None,
-            "comment": updated_line.comment,
-            "exclude": updated_line.exclude,
-            "iskeyfield": updated_line.iskeyfield,
-            "isfkfield": updated_line.isfkfield,
-            "action": "cleared_table_id"
-        }
-    
-    # Validate that the table exists
-    table = db.query(ERPTable).filter(ERPTable.id == line_data.table_id).first()
-    if not table:
-        raise HTTPException(status_code=404, detail="ERP table not found")
-    
-    # Update the line's table_id
-    existing_line.table_id = line_data.table_id
-    
-    # Handle column_id clearing logic
-    if line_data.column_id == 0:
-        # Clear column_id for the specific line only
-        existing_line.column_id = None
-    elif line_data.column_id is not None:
-        # Validate that the column exists
-        column = db.query(ERPColumn).filter(ERPColumn.id == line_data.column_id).first()
-        if not column:
-            raise HTTPException(status_code=404, detail="ERP column not found")
-        
-        # Validate that the column belongs to the specified table
-        if column.table_id != line_data.table_id:
-            raise HTTPException(status_code=400, detail="Column does not belong to the specified table")
-        
-        # Update the column_id and name
-        existing_line.column_id = line_data.column_id
-    else:
-        # If column_id is not provided, set it to None and update name to just table name
-        existing_line.column_id = None
-    
+
+    # Table/column mapping: only when at least one is present in the body
+    table_id_sent = line_data.table_id is not None
+    column_id_sent = line_data.column_id is not None
+    if table_id_sent or column_id_sent:
+        if line_data.table_id is None or line_data.table_id == 0:
+            existing_line.table_id = None
+            existing_line.column_id = None
+            db.commit()
+            update_category_percent_mapped(db, existing_line.categoryid)
+            updated_line = db.query(Lines).options(
+                joinedload(Lines.erp_table),
+                joinedload(Lines.erp_column)
+            ).filter(Lines.id == existing_line.id).first()
+            return {
+                "id": updated_line.id,
+                "categoryid": updated_line.categoryid,
+                "table_id": updated_line.table_id,
+                "column_id": updated_line.column_id,
+                "table_name": updated_line.erp_table.name if updated_line.erp_table else None,
+                "column_name": updated_line.erp_column.name if updated_line.erp_column else None,
+                "comment": updated_line.comment,
+                "exclude": updated_line.exclude,
+                "iskeyfield": updated_line.iskeyfield,
+                "isfkfield": updated_line.isfkfield,
+                "action": "cleared_table_id"
+            }
+
+        table = db.query(ERPTable).filter(ERPTable.id == line_data.table_id).first()
+        if not table:
+            raise HTTPException(status_code=404, detail="ERP table not found")
+        existing_line.table_id = line_data.table_id
+
+        if line_data.column_id == 0:
+            existing_line.column_id = None
+        elif line_data.column_id is not None:
+            column = db.query(ERPColumn).filter(ERPColumn.id == line_data.column_id).first()
+            if not column:
+                raise HTTPException(status_code=404, detail="ERP column not found")
+            if column.table_id != line_data.table_id:
+                raise HTTPException(status_code=400, detail="Column does not belong to the specified table")
+            existing_line.column_id = line_data.column_id
+        else:
+            existing_line.column_id = None
+
     db.commit()
     db.refresh(existing_line)
-    
-    # Update percent_mapped for the category
     update_category_percent_mapped(db, existing_line.categoryid)
-    
-    # Load the related table and column data for the response
+
     updated_line = db.query(Lines).options(
         joinedload(Lines.erp_table),
         joinedload(Lines.erp_column)
     ).filter(Lines.id == existing_line.id).first()
-    
-    action = "cleared_column_id" if line_data.column_id == 0 else "updated"
-    
+
+    action = "cleared_column_id" if (column_id_sent and line_data.column_id == 0) else "updated"
     return {
         "id": updated_line.id,
         "categoryid": updated_line.categoryid,

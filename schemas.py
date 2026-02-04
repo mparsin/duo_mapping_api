@@ -352,6 +352,34 @@ class ERPColumn(ERPColumnBase):
     class Config:
         from_attributes = True
 
+# ERP column comment response (GET by table name + column name)
+class ERPColumnCommentResponse(BaseModel):
+    table_name: str = Field(
+        ...,
+        description="ERP table name",
+        example="customers"
+    )
+    column_name: str = Field(
+        ...,
+        description="ERP column name",
+        example="full_name"
+    )
+    comment: Optional[str] = Field(
+        default=None,
+        description="Column comment or description",
+        example="Full customer name"
+    )
+    table_id: Optional[int] = Field(
+        default=None,
+        description="Unique table identifier",
+        example=5
+    )
+    column_id: Optional[int] = Field(
+        default=None,
+        description="Unique column identifier",
+        example=23
+    )
+
 # Line creation schemas
 class LineCreate(BaseModel):
     table_id: Optional[int] = Field(
@@ -384,6 +412,155 @@ class LineCreate(BaseModel):
         description="Whether this line represents a foreign key field",
         example=False
     )
+
+
+class LineCreateRequest(BaseModel):
+    """Request body for POST /api/categories/{category_id}/lines (create new line)."""
+    name: str = Field(
+        ...,
+        description="Display name for this line/field",
+        example="Customer Name"
+    )
+    sub_category_id: Optional[int] = Field(
+        default=None,
+        description="Associated sub-category identifier",
+        example=1
+    )
+    field_name: Optional[str] = Field(
+        default=None,
+        description="Source field name in the original system",
+        example="customer_name"
+    )
+    default: Optional[str] = Field(
+        default=None,
+        description="Default value for this field",
+        example="John Doe"
+    )
+    reason: Optional[str] = Field(
+        default=None,
+        description="Explanation or justification for this mapping",
+        example="Primary customer identifier used across all systems"
+    )
+    comment: Optional[str] = Field(
+        default=None,
+        description="Additional notes or comments about this mapping",
+        example="Full customer name including middle initial"
+    )
+    seq_no: Optional[int] = Field(
+        default=None,
+        description="Display sequence number for ordering lines",
+        example=1
+    )
+    customer_settings: Optional[str] = Field(
+        default=None,
+        description="Customer-specific configuration settings",
+        example="required"
+    )
+    no_of_chars: Optional[str] = Field(
+        default=None,
+        description="Maximum character length for this field",
+        example="50"
+    )
+    table_id: Optional[int] = Field(
+        default=None,
+        description="Target ERP table identifier",
+        example=5
+    )
+    column_id: Optional[int] = Field(
+        default=None,
+        description="Target ERP column identifier (set to 0 to leave unset)",
+        example=23
+    )
+    exclude: Optional[bool] = Field(
+        default=False,
+        description="Whether this line should be excluded from percentage calculations",
+        example=False
+    )
+    iskeyfield: Optional[bool] = Field(
+        default=False,
+        description="Whether this line represents a key field",
+        example=False
+    )
+    isfkfield: Optional[bool] = Field(
+        default=False,
+        description="Whether this line represents a foreign key field",
+        example=False
+    )
+
+
+class LineUpdate(BaseModel):
+    """Request body for PATCH /api/lines/{line_id} (partial update; all fields optional)."""
+    name: Optional[str] = Field(
+        default=None,
+        description="Display name for this line/field",
+        example="Customer Name"
+    )
+    field_name: Optional[str] = Field(
+        default=None,
+        description="Source field name in the original system",
+        example="customer_name"
+    )
+    default: Optional[str] = Field(
+        default=None,
+        description="Default value for this field",
+        example="John Doe"
+    )
+    reason: Optional[str] = Field(
+        default=None,
+        description="Explanation or justification for this mapping",
+        example="Primary customer identifier used across all systems"
+    )
+    comment: Optional[str] = Field(
+        default=None,
+        description="Additional notes or comments about this mapping",
+        example="Full customer name including middle initial"
+    )
+    seq_no: Optional[int] = Field(
+        default=None,
+        description="Display sequence number for ordering lines",
+        example=1
+    )
+    customer_settings: Optional[str] = Field(
+        default=None,
+        description="Customer-specific configuration settings",
+        example="required"
+    )
+    no_of_chars: Optional[str] = Field(
+        default=None,
+        description="Maximum character length for this field",
+        example="50"
+    )
+    sub_category_id: Optional[int] = Field(
+        default=None,
+        description="Associated sub-category identifier",
+        example=1
+    )
+    table_id: Optional[int] = Field(
+        default=None,
+        description="Target ERP table ID (set to 0 or null to clear mapping)",
+        example=5
+    )
+    column_id: Optional[int] = Field(
+        default=None,
+        description="Target ERP column ID (set to 0 to clear column only)",
+        example=23
+    )
+    exclude: Optional[bool] = Field(
+        default=None,
+        description="Whether this line should be excluded from percentage calculations",
+        example=False
+    )
+    iskeyfield: Optional[bool] = Field(
+        default=None,
+        description="Whether this line represents a key field",
+        example=False
+    )
+    isfkfield: Optional[bool] = Field(
+        default=None,
+        description="Whether this line represents a foreign key field",
+        example=False
+    )
+
 
 class LineResponse(BaseModel):
     id: int = Field(
