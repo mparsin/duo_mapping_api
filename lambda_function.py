@@ -1,29 +1,37 @@
+import json
 import os
 import traceback
-from mangum import Mangum
-from main import app
 
 # API Gateway stage prefix (e.g. /prod) - strip so FastAPI receives / and /api/health
-# Set API_GATEWAY_BASE_PATH in Lambda env if using a different stage name
-api_gateway_base_path = os.getenv("API_GATEWAY_BASE_PATH", "/prod")
+API_GATEWAY_BASE_PATH = os.getenv("API_GATEWAY_BASE_PATH", "/prod")
 
-_mangum_handler = Mangum(app, lifespan="off", api_gateway_base_path=api_gateway_base_path)
+# Lazy: import app and create Mangum inside handler so import-time errors are caught
+# and returned in the response (otherwise Lambda fails at load and returns generic 500).
+_mangum_handler = None
 
 
-def handler(event, context):
-    """Wrap Mangum so we return actual errors in response body for debugging."""
-    try:
-        return _mangum_handler(event, context)
-    except Exception as e:
-        # Return 500 with error details so deployment test logs show the real cause
-        body = {
+def _error_response(e):
+    return {
+        "statusCode": 500,
+        "headers": {"Content-Type": "application/json"},
+        "body": json.dumps({
             "message": "Internal server error",
             "detail": str(e),
             "type": type(e).__name__,
             "traceback": traceback.format_exc(),
-        }
-        return {
-            "statusCode": 500,
-            "headers": {"Content-Type": "application/json"},
-            "body": __import__("json").dumps(body),
-        }
+        }),
+    }
+
+
+def handler(event, context):
+    global _mangum_handler
+    try:
+        if _mangum_handler is None:
+            from main import app
+            from mangum import Mangum
+            _mangum_handler = Mangum(
+                app, lifespan="off", api_gateway_base_path=API_GATEWAY_BASE_PATH
+            )
+        return _mangum_handler(event, context)
+    except Exception as e:
+        return _error_response(e)
