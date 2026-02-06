@@ -46,7 +46,7 @@ jobs:
     - name: Create deployment package (Lambda-compatible)
       run: |
         echo "🚀 Building deployment package in Lambda Python 3.11 image (fixes GLIBC/cryptography)..."
-        docker run --rm \
+        docker run --rm --entrypoint "" \
           -v "${{ github.workspace }}:/workspace" \
           -w /workspace \
           public.ecr.aws/lambda/python:3.11 \
