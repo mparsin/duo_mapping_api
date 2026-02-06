@@ -43,39 +43,21 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     
-    - name: Set up Python 3.11
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
-    
-    - name: Install system dependencies
+    - name: Create deployment package (Lambda-compatible)
       run: |
-        sudo apt-get update
-        sudo apt-get install -y gcc libpq-dev zip
-    
-    - name: Create deployment package
-      run: |
-        echo "🚀 Creating deployment package..."
-        
-        # Create temp directory for package
-        mkdir -p package
-        
-        # Install dependencies directly (we're already on Linux)
-        pip install --target package --upgrade -r requirements.txt
-        
-        # Copy application files
-        cp main.py database.py schemas.py lambda_function.py package/
-        
-        # Create ZIP package
-        cd package
-        zip -r ../deployment-package.zip .
-        cd ..
-        
-        # Check package size
+        echo "🚀 Building deployment package in Lambda Python 3.11 image (fixes GLIBC/cryptography)..."
+        docker run --rm \
+          -v "${{ github.workspace }}:/workspace" \
+          -w /workspace \
+          public.ecr.aws/lambda/python:3.11 \
+          bash -c "
+            pip install --target /tmp/package -r requirements.txt &&
+            cp main.py database.py schemas.py lambda_function.py /tmp/package/ &&
+            cd /tmp/package && zip -r /workspace/deployment-package.zip .
+          "
         SIZE=$(stat -c%s deployment-package.zip)
         SIZE_MB=$((SIZE / 1024 / 1024))
         echo "📦 Package size: ${SIZE_MB}MB"
-        
         if [ $SIZE_MB -gt 50 ]; then
           echo "⚠️ Warning: Package size exceeds 50MB"
         fi
