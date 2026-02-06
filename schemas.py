@@ -714,5 +714,44 @@ class TableMatchResult(BaseModel):
         from_attributes = True
 
 
+# GitHub connection (long-lived token stored encrypted; used by create-schema-pr)
+class GitHubConnectionSetRequest(BaseModel):
+    github_token: str = Field(
+        ...,
+        description="GitHub Personal Access Token (PAT) with repo or public_repo scope",
+        min_length=1,
+    )
+
+
+class GitHubConnectionStatusResponse(BaseModel):
+    configured: bool = Field(
+        ...,
+        description="Whether a GitHub connection (token) is stored",
+    )
+
+
+# Create schema PR: token is loaded from DB (PUT /api/github-connection).
+# owner, repo, file_path, branch_name, base_branch are read from server env (see .env).
+class CreateSchemaPRRequest(BaseModel):
+    author: Optional[str] = Field(
+        default=None,
+        description="Display name or identifier of who requested the change (for visibility in PR/commit; not a GitHub user)",
+    )
+    pr_title: Optional[str] = Field(
+        default=None,
+        description="PR title; default 'Update schema config'",
+    )
+    pr_body: Optional[str] = Field(
+        default=None,
+        description="PR body; default includes timestamp",
+    )
+
+
+class CreateSchemaPRResponse(BaseModel):
+    pr_url: str = Field(..., description="URL of the created pull request")
+    pr_number: int = Field(..., description="Pull request number")
+    branch: str = Field(..., description="Branch name created")
+    commit_sha: str = Field(..., description="Commit SHA")
+    file_path: str = Field(..., description="Path of the file in the repo")
 
 
