@@ -2,7 +2,7 @@ from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session, joinedload
-from database import get_db, Category, Lines, ERPTable, ERPColumn, SubCategory, TableSet
+from database import get_db, Category, Lines, ERPTable, ERPColumn, SubCategory, TableSet, GitHubConnection
 from schemas import (
     Category as CategorySchema,
     Lines as LinesSchema,
@@ -20,13 +20,21 @@ from schemas import (
     TableMatchResult,
     CategoryConfigUpdate,
     CategoryConfigResponse,
-    TableSet as TableSetSchema
+    TableSet as TableSetSchema,
+    GitHubConnectionSetRequest,
+    GitHubConnectionStatusResponse,
+    CreateSchemaPRRequest,
+    CreateSchemaPRResponse,
 )
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from sqlalchemy import func
 import json
 import hashlib
+import os
+import base64
 from datetime import datetime
+from cryptography.fernet import Fernet
+import httpx
 
 # OpenAPI documentation configuration
 app = FastAPI(
@@ -2371,6 +2379,242 @@ async def download_upload_config(db: Session = Depends(get_db)):
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error generating upload config: {str(e)}")
+
+
+# --- GitHub connection (encrypted token) and create-schema-pr ---
+
+def _get_fernet():
+    """Return Fernet instance from GITHUB_TOKEN_ENCRYPTION_KEY. Key must be 32 url-safe base64 bytes."""
+    key = os.getenv("GITHUB_TOKEN_ENCRYPTION_KEY")
+    if not key:
+        raise HTTPException(
+            status_code=503,
+            detail="GITHUB_TOKEN_ENCRYPTION_KEY is not set; cannot encrypt or decrypt GitHub token.",
+        )
+    try:
+        if isinstance(key, str):
+            key = key.encode("utf-8")
+        return Fernet(key)
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"Invalid GITHUB_TOKEN_ENCRYPTION_KEY: {e}")
+
+
+def _encrypt_token(token: str) -> str:
+    return _get_fernet().encrypt(token.encode("utf-8")).decode("utf-8")
+
+
+def _decrypt_token(encrypted: str) -> str:
+    return _get_fernet().decrypt(encrypted.encode("utf-8")).decode("utf-8")
+
+
+@api_router.put(
+    "/github-connection",
+    tags=["Schema Export"],
+    summary="Set GitHub connection",
+    description="Store a GitHub PAT (encrypted) for use by create-schema-pr. Token is validated with GitHub before storing. One app-wide connection.",
+    responses={
+        200: {"description": "Connection configured"},
+        401: {"description": "Invalid or expired GitHub token"},
+        503: {"description": "Encryption key not configured"},
+    },
+)
+async def set_github_connection(
+    body: GitHubConnectionSetRequest,
+    db: Session = Depends(get_db),
+):
+    """Set or update the app-wide GitHub connection. Token is encrypted and stored; never returned."""
+    # Validate token with GitHub
+    async with httpx.AsyncClient() as client:
+        r = await client.get(
+            "https://api.github.com/user",
+            headers={"Authorization": f"Bearer {body.github_token}"},
+        )
+    if r.status_code == 401:
+        raise HTTPException(status_code=401, detail="Invalid or expired GitHub token.")
+    if r.status_code != 200:
+        raise HTTPException(
+            status_code=502,
+            detail=f"GitHub API returned {r.status_code}; cannot validate token.",
+        )
+    encrypted = _encrypt_token(body.github_token)
+    row = db.query(GitHubConnection).first()
+    if row:
+        row.encrypted_token = encrypted
+        row.updated_at = datetime.utcnow()
+    else:
+        db.add(GitHubConnection(encrypted_token=encrypted))
+    db.commit()
+    return {"status": "configured"}
+
+
+@api_router.get(
+    "/github-connection",
+    tags=["Schema Export"],
+    summary="GitHub connection status",
+    description="Returns whether a GitHub connection is configured. Never returns the token.",
+    responses={200: {"description": "Status only"}},
+)
+async def get_github_connection_status(db: Session = Depends(get_db)):
+    row = db.query(GitHubConnection).first()
+    return GitHubConnectionStatusResponse(configured=row is not None)
+
+
+@api_router.delete(
+    "/github-connection",
+    tags=["Schema Export"],
+    summary="Remove GitHub connection",
+    description="Deletes the stored GitHub token. create-schema-pr will fail until PUT is called again.",
+    responses={200: {"description": "Connection removed"}},
+)
+async def delete_github_connection(db: Session = Depends(get_db)):
+    db.query(GitHubConnection).delete()
+    db.commit()
+    return {"status": "removed"}
+
+
+@api_router.post(
+    "/create-schema-pr",
+    tags=["Schema Export"],
+    summary="Create PR with schema",
+    description="Generates the mapped schema (same as download-schema), creates a commit on a new branch, and opens a PR. owner, repo, file_path, branch_name, base_branch are read from server .env (GITHUB_SCHEMA_PR_*). GitHub token is from DB (PUT /api/github-connection). Request body: optional author (for visibility), pr_title, pr_body.",
+    responses={
+        200: {"description": "PR created"},
+        412: {"description": "GitHub connection not configured"},
+        503: {"description": "Encryption key not set or connection missing"},
+    },
+)
+async def create_schema_pr(
+    body: CreateSchemaPRRequest,
+    db: Session = Depends(get_db),
+):
+    """Create a branch and PR with the current mapped schema. Token is loaded from DB (stored via PUT /api/github-connection).
+    owner, repo, file_path, branch_name, base_branch are read from server .env."""
+    owner = os.getenv("GITHUB_SCHEMA_PR_OWNER")
+    repo = os.getenv("GITHUB_SCHEMA_PR_REPO")
+    if not owner or not repo:
+        raise HTTPException(
+            status_code=500,
+            detail="Server misconfiguration: GITHUB_SCHEMA_PR_OWNER and GITHUB_SCHEMA_PR_REPO must be set in .env.",
+        )
+    file_path = os.getenv("GITHUB_SCHEMA_PR_FILE_PATH", "schema-config.json")
+    base_branch = os.getenv("GITHUB_SCHEMA_PR_BASE_BRANCH", "main")
+    branch_name = os.getenv("GITHUB_SCHEMA_PR_BRANCH_NAME") or f"schema-export/{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}"
+
+    row = db.query(GitHubConnection).first()
+    if not row:
+        raise HTTPException(
+            status_code=412,
+            detail="GitHub connection not configured. Use PUT /api/github-connection to set a token.",
+        )
+    try:
+        token = _decrypt_token(row.encrypted_token)
+    except Exception as e:
+        raise HTTPException(
+            status_code=503,
+            detail="Could not decrypt stored token. Check GITHUB_TOKEN_ENCRYPTION_KEY or re-set the connection.",
+        )
+    schema_data = generate_mapped_schema(db)
+    pr_title = body.pr_title or "Update schema config"
+    pr_body = body.pr_body or f"Schema export at {datetime.utcnow().isoformat()}Z"
+    if body.author and body.author.strip():
+        author_line = f"**Requested by:** {body.author.strip()}\n\n"
+        pr_body = author_line + pr_body
+        commit_message = f"{pr_title}\n\n(Requested by: {body.author.strip()})"
+    else:
+        commit_message = pr_title
+    content_bytes = json.dumps(schema_data, indent=2).encode("utf-8")
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+    }
+    async with httpx.AsyncClient() as client:
+        # Get base branch SHA
+        r = await client.get(
+            f"https://api.github.com/repos/{owner}/{repo}/git/ref/heads/{base_branch}",
+            headers=headers,
+        )
+        if r.status_code == 401:
+            raise HTTPException(
+                status_code=401,
+                detail="GitHub token expired or revoked. Please update the connection via PUT /api/github-connection.",
+            )
+        if r.status_code == 404:
+            raise HTTPException(status_code=404, detail=f"Repo or branch {base_branch} not found.")
+        if r.status_code != 200:
+            raise HTTPException(status_code=r.status_code, detail=r.text or "GitHub API error")
+        base_sha = r.json()["object"]["sha"]
+
+        # Create blob
+        r = await client.post(
+            f"https://api.github.com/repos/{owner}/{repo}/git/blobs",
+            headers=headers,
+            json={"content": base64.b64encode(content_bytes).decode("utf-8"), "encoding": "base64"},
+        )
+        if r.status_code not in (200, 201):
+            raise HTTPException(status_code=r.status_code, detail=r.text or "Failed to create blob")
+        blob_sha = r.json()["sha"]
+
+        # Create tree
+        r = await client.post(
+            f"https://api.github.com/repos/{owner}/{repo}/git/trees",
+            headers=headers,
+            json={
+                "base_tree": base_sha,
+                "tree": [{"path": file_path, "mode": "100644", "type": "blob", "sha": blob_sha}],
+            },
+        )
+        if r.status_code not in (200, 201):
+            raise HTTPException(status_code=r.status_code, detail=r.text or "Failed to create tree")
+        tree_sha = r.json()["sha"]
+
+        # Create commit
+        r = await client.post(
+            f"https://api.github.com/repos/{owner}/{repo}/git/commits",
+            headers=headers,
+            json={"message": commit_message, "tree": tree_sha, "parents": [base_sha]},
+        )
+        if r.status_code not in (200, 201):
+            raise HTTPException(status_code=r.status_code, detail=r.text or "Failed to create commit")
+        commit_sha = r.json()["sha"]
+
+        # Create ref (branch)
+        r = await client.post(
+            f"https://api.github.com/repos/{owner}/{repo}/git/refs",
+            headers=headers,
+            json={"ref": f"refs/heads/{branch_name}", "sha": commit_sha},
+        )
+        if r.status_code == 422 and "already exists" in (r.text or "").lower():
+            raise HTTPException(
+                status_code=422,
+                detail=f"Branch {branch_name} already exists. Retry later or set GITHUB_SCHEMA_PR_BRANCH_NAME in .env.",
+            )
+        if r.status_code not in (200, 201):
+            raise HTTPException(status_code=r.status_code, detail=r.text or "Failed to create branch")
+
+        # Create PR
+        r = await client.post(
+            f"https://api.github.com/repos/{owner}/{repo}/pulls",
+            headers=headers,
+            json={
+                "title": pr_title,
+                "body": pr_body,
+                "head": branch_name,
+                "base": base_branch,
+            },
+        )
+        if r.status_code not in (200, 201):
+            raise HTTPException(status_code=r.status_code, detail=r.text or "Failed to create pull request")
+        pr = r.json()
+
+    return CreateSchemaPRResponse(
+        pr_url=pr["html_url"],
+        pr_number=pr["number"],
+        branch=branch_name,
+        commit_sha=commit_sha,
+        file_path=file_path,
+    )
+
 
 # Include the API router
 app.include_router(api_router)

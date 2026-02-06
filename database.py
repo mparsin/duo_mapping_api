@@ -1,6 +1,7 @@
-from sqlalchemy import create_engine, Column, Integer, String, BigInteger, ForeignKey, Float, Boolean, JSON
+from sqlalchemy import create_engine, Column, Integer, String, BigInteger, ForeignKey, Float, Boolean, JSON, Text, DateTime
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
+from datetime import datetime
 import os
 from dotenv import load_dotenv
 
@@ -112,6 +113,16 @@ class ERPColumn(Base):
     # Relationships
     erp_table = relationship("ERPTable", back_populates="columns")
     lines = relationship("Lines", back_populates="erp_column")
+
+
+class GitHubConnection(Base):
+    """Single row: app-wide GitHub PAT stored encrypted for create-schema-pr."""
+    __tablename__ = "github_connection"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    encrypted_token = Column(Text, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
 
 # Database dependency
 def get_db():
