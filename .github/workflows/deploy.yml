@@ -53,16 +53,7 @@ jobs:
           bash -c "
             pip install --target /tmp/package -r requirements.txt &&
             cp main.py database.py schemas.py lambda_function.py /tmp/package/ &&
-            cd /tmp/package && python -c \"
-            import zipfile, os
-            os.chdir('/tmp/package')
-            with zipfile.ZipFile('/workspace/deployment-package.zip', 'w', zipfile.ZIP_DEFLATED) as zf:
-                for root, dirs, files in os.walk('.'):
-                    for f in files:
-                        path = os.path.join(root, f)
-                        arc = path[2:] if path.startswith('./') else path
-                        zf.write(path, arc)
-            \"
+            cd /tmp/package && python -c \"import zipfile,os; os.chdir('/tmp/package'); zf=zipfile.ZipFile('/workspace/deployment-package.zip','w',zipfile.ZIP_DEFLATED); [zf.write(p, p[2:] if p.startswith('./') else p) for r,d,fs in os.walk('.') for p in [os.path.join(r,f) for f in fs]]; zf.close()\"
           "
         SIZE=$(stat -c%s deployment-package.zip)
         SIZE_MB=$((SIZE / 1024 / 1024))
