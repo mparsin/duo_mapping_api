@@ -386,7 +386,6 @@ def generate_upload_config(db: Session) -> Dict[str, Any]:
             }
         }
     },
-    dependencies=[Depends(require_cognito_token)],
 )
 async def root():
     """
@@ -396,6 +395,34 @@ async def root():
     Use this to verify the service is running before making other API calls.
     """
     return {"message": "Duo Mapping API is running"}
+
+
+@app.get(
+    "/api/health",
+    tags=["Utilities"],
+    summary="Health Check",
+    description="Simple health check to verify API availability (no auth required)",
+    responses={
+        200: {
+            "description": "API is healthy and operational",
+            "content": {
+                "application/json": {
+                    "example": {"status": "healthy"}
+                }
+            }
+        }
+    },
+)
+async def health_check():
+    """
+    **API health check**
+
+    Simple endpoint to verify the API is running and operational.
+    Use this for monitoring and load balancer health checks.
+    No authentication required.
+    """
+    return {"status": "healthy"}
+
 
 # API endpoints with /api prefix
 @api_router.get(
@@ -2160,31 +2187,6 @@ async def recalculate_all_percent_mapped(db: Session = Depends(get_db)):
         "message": f"Successfully recalculated percent_mapped for {updated_count} categories",
         "updated_count": updated_count
     }
-
-@api_router.get(
-    "/health",
-    tags=["Utilities"],
-    summary="Health Check",
-    description="Simple health check to verify API availability",
-    responses={
-        200: {
-            "description": "API is healthy and operational",
-            "content": {
-                "application/json": {
-                    "example": {"status": "healthy"}
-                }
-            }
-        }
-    }
-)
-async def health_check():
-    """
-    **API health check**
-    
-    Simple endpoint to verify the API is running and operational.
-    Use this for monitoring and load balancer health checks.
-    """
-    return {"status": "healthy"}
 
 @api_router.get(
     "/download-schema",
