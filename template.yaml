@@ -7,12 +7,45 @@ Globals:
     Timeout: 30
     MemorySize: 512
     Runtime: python3.11
+  Api:
+    # JWT is validated in the Lambda (FastAPI auth dependency). No API Gateway
+    # authorizer so OPTIONS preflight can succeed without Authorization header.
+    Cors:
+      AllowOrigin: !Sub "'${CORSAllowOrigin}'"
+      AllowHeaders: "'Authorization,Content-Type'"
+      AllowMethods: "'GET,POST,PUT,PATCH,DELETE,OPTIONS'"
 
 Parameters:
+  CORSAllowOrigin:
+    Type: String
+    Default: "http://localhost:4200"
+    Description: "CORS Allow-Origin value; use SPA origin in prod (e.g. CloudFront or S3 website URL)"
+  CognitoIssuer:
+    Type: String
+    Default: "https://cognito-idp.us-east-1.amazonaws.com/us-east-1_oPCgNjR0o"
+    Description: "Cognito User Pool issuer URL for JWT validation"
+  CognitoAppClientId:
+    Type: String
+    Default: "7889jq6rloftibcqp7jhemj6rn"
+    Description: "Cognito App Client ID (audience for access tokens)"
   DatabaseURL:
     Type: String
     Default: "postgresql://postgres:postgres@duo-mapping.cefhyz1bpgbv.us-east-2.rds.amazonaws.com:5432/duo-mapping-db"
     Description: PostgreSQL database connection string
+  # Required for POST /api/create-schema-pr (and PUT /api/github-connection)
+  GITHUB_SCHEMA_PR_OWNER:
+    Type: String
+    Default: ""
+    Description: "GitHub org or user for the repo where schema PRs are opened (e.g. mparsin)"
+  GITHUB_SCHEMA_PR_REPO:
+    Type: String
+    Default: ""
+    Description: "GitHub repo name for schema PRs (e.g. duo-mapping-client)"
+  GITHUB_TOKEN_ENCRYPTION_KEY:
+    Type: String
+    NoEcho: true
+    Default: ""
+    Description: "32-byte base64 key for encrypting stored GitHub PAT (required for github-connection and create-schema-pr)"
 
 Resources:
   DuoMappingApi:
@@ -24,6 +57,12 @@ Resources:
       Environment:
         Variables:
           DATABASE_URL: !Ref DatabaseURL
+          GITHUB_SCHEMA_PR_OWNER: !Ref GITHUB_SCHEMA_PR_OWNER
+          GITHUB_SCHEMA_PR_REPO: !Ref GITHUB_SCHEMA_PR_REPO
+          GITHUB_TOKEN_ENCRYPTION_KEY: !Ref GITHUB_TOKEN_ENCRYPTION_KEY
+          CORS_ORIGINS: !Ref CORSAllowOrigin
+          COGNITO_ISSUER: !Ref CognitoIssuer
+          COGNITO_APP_CLIENT_ID: !Ref CognitoAppClientId
       Events:
         ApiProxy:
           Type: Api

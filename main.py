@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session, joinedload
 from database import get_db, Category, Lines, ERPTable, ERPColumn, SubCategory, TableSet, GitHubConnection
+from auth import require_cognito_token
 from schemas import (
     Category as CategorySchema,
     Lines as LinesSchema,
@@ -110,18 +111,20 @@ app = FastAPI(
     ]
 )
 
-# Configure CORS - Update this section
+# CORS: dev = http://localhost:4200, prod = SPA origin (e.g. CloudFront or S3 website URL)
+_cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:4200").strip().split(",")
+_cors_origins = [o.strip() for o in _cors_origins if o.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins for public API
+    allow_origins=_cors_origins if _cors_origins else ["http://localhost:4200"],
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
-# Create API router with /api prefix
+# Create API router with /api prefix; all routes require valid Cognito access token
 from fastapi import APIRouter
-api_router = APIRouter(prefix="/api")
+api_router = APIRouter(prefix="/api", dependencies=[Depends(require_cognito_token)])
 
 # Helper function to calculate and update percent_mapped for a category
 def update_category_percent_mapped(db: Session, category_id: int):
@@ -382,7 +385,8 @@ def generate_upload_config(db: Session) -> Dict[str, Any]:
                 }
             }
         }
-    }
+    },
+    dependencies=[Depends(require_cognito_token)],
 )
 async def root():
     """
