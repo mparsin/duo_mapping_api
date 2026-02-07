@@ -109,6 +109,35 @@ After setup, you should see:
 1. **Access Denied:** Check IAM policy permissions
 2. **Function Not Found:** Verify Lambda function name matches
 3. **Region Mismatch:** Ensure us-east-1 region is correct
+4. **"GITHUB_SCHEMA_PR_OWNER and GITHUB_SCHEMA_PR_REPO must be set":** Lambda does **not** load a `.env` file. You must set these (and `GITHUB_TOKEN_ENCRYPTION_KEY`) as Lambda environment variables—see **Create-schema-pr / GitHub env vars** below.
+
+### Create-schema-pr / GitHub env vars
+
+`POST /api/create-schema-pr` and `PUT /api/github-connection` need these **Lambda environment variables** (they are not read from `.env` in the cloud):
+
+| Variable | Required | Example |
+|----------|----------|---------|
+| `GITHUB_SCHEMA_PR_OWNER` | Yes | `mparsin` |
+| `GITHUB_SCHEMA_PR_REPO` | Yes | `duo-mapping-client` |
+| `GITHUB_TOKEN_ENCRYPTION_KEY` | Yes (for token encrypt/decrypt) | 32-byte base64 key |
+
+**Option A – AWS Console**
+
+1. Open [Lambda → duo-mapping-api](https://us-east-1.console.aws.amazon.com/lambda/home?region=us-east-1#/functions/duo-mapping-api).
+2. **Configuration** → **Environment variables** → **Edit**.
+3. Add `GITHUB_SCHEMA_PR_OWNER`, `GITHUB_SCHEMA_PR_REPO`, and `GITHUB_TOKEN_ENCRYPTION_KEY` (same values as in your local `.env`).
+4. Save.
+
+**Option B – AWS CLI**
+
+`update-function-configuration` replaces all environment variables, so you must include existing ones (e.g. `DATABASE_URL`) plus the new ones:
+
+```bash
+aws lambda update-function-configuration --function-name duo-mapping-api --region us-east-1 \
+  --environment "Variables={DATABASE_URL=<your-db-url>,GITHUB_SCHEMA_PR_OWNER=mparsin,GITHUB_SCHEMA_PR_REPO=duo-mapping-client,GITHUB_TOKEN_ENCRYPTION_KEY=<your-base64-key>}"
+```
+
+Replace `<your-db-url>` and `<your-base64-key>` with your values. To see current vars first: `aws lambda get-function-configuration --function-name duo-mapping-api --query 'Environment.Variables'`.
 
 ### Support:
 - GitHub Actions logs: Available in repository Actions tab
