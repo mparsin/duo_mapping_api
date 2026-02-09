@@ -2636,8 +2636,15 @@ async def create_schema_pr(
                         return resp.text or f"HTTP {resp.status_code}"
 
                 err_msg = _merge_error_message(r_merge)
+                # Normalize throttling errors so the user knows it's transient
+                if r_merge.status_code in (403, 429) or "throttled" in err_msg.lower():
+                    merged = False
+                    merge_commit_sha = None
+                    merge_error = (
+                        "GitHub is temporarily throttling API requests. Wait a few minutes and retry, or merge the PR manually."
+                    )
                 # Repo may disallow merge commits; retry with squash when user didn't set merge_method
-                if (
+                elif (
                     body.merge_method is None
                     and r_merge.status_code in (405, 422)
                     and "merge commits are not allowed" in err_msg.lower()
@@ -2658,7 +2665,7 @@ async def create_schema_pr(
                 else:
                     merged = False
                     merge_commit_sha = None
-                    merge_error = err_msg
+                    merge_error = err_msg if merge_error is None else merge_error
 
     return CreateSchemaPRResponse(
         pr_url=pr["html_url"],
