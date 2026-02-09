@@ -2629,12 +2629,36 @@ async def create_schema_pr(
                 merged = True
                 merge_commit_sha = r_merge.json().get("sha")
             else:
-                merged = False
-                try:
-                    err_data = r_merge.json()
-                    merge_error = err_data.get("message", r_merge.text or f"HTTP {r_merge.status_code}")
-                except Exception:
-                    merge_error = r_merge.text or f"HTTP {r_merge.status_code}"
+                def _merge_error_message(resp) -> str:
+                    try:
+                        return resp.json().get("message", resp.text or f"HTTP {resp.status_code}")
+                    except Exception:
+                        return resp.text or f"HTTP {resp.status_code}"
+
+                err_msg = _merge_error_message(r_merge)
+                # Repo may disallow merge commits; retry with squash when user didn't set merge_method
+                if (
+                    body.merge_method is None
+                    and r_merge.status_code in (405, 422)
+                    and "merge commits are not allowed" in err_msg.lower()
+                ):
+                    r_merge = await client.put(
+                        f"https://api.github.com/repos/{owner}/{repo}/pulls/{pr['number']}/merge",
+                        headers=headers,
+                        json={"merge_method": "squash"},
+                    )
+                    if r_merge.status_code == 200:
+                        merged = True
+                        merge_commit_sha = r_merge.json().get("sha")
+                        merge_error = None
+                    else:
+                        merged = False
+                        merge_commit_sha = None
+                        merge_error = _merge_error_message(r_merge)
+                else:
+                    merged = False
+                    merge_commit_sha = None
+                    merge_error = err_msg
 
     return CreateSchemaPRResponse(
         pr_url=pr["html_url"],
