@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Literal
 
 # TableSet schemas
 class TableSetBase(BaseModel):
@@ -745,6 +745,14 @@ class CreateSchemaPRRequest(BaseModel):
         default=None,
         description="PR body; default includes timestamp",
     )
+    auto_merge: Optional[bool] = Field(
+        default=False,
+        description="When true, merge the PR after creation. PR remains open if merge fails (e.g. branch protection).",
+    )
+    merge_method: Optional[Literal["merge", "squash", "rebase"]] = Field(
+        default=None,
+        description="Merge strategy; if omitted, GitHub uses repo default.",
+    )
 
 
 class CreateSchemaPRResponse(BaseModel):
@@ -753,5 +761,17 @@ class CreateSchemaPRResponse(BaseModel):
     branch: str = Field(..., description="Branch name created")
     commit_sha: str = Field(..., description="Commit SHA")
     file_path: str = Field(..., description="Path of the file in the repo")
+    merged: Optional[bool] = Field(
+        default=None,
+        description="True when auto_merge succeeded; False when auto_merge was True but merge failed; omitted when auto_merge was False.",
+    )
+    merge_commit_sha: Optional[str] = Field(
+        default=None,
+        description="Merge commit SHA when merged is True.",
+    )
+    merge_error: Optional[str] = Field(
+        default=None,
+        description="Reason merge failed when auto_merge was True but merged is False.",
+    )
 
 

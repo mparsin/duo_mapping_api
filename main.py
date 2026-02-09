@@ -2482,7 +2482,7 @@ async def delete_github_connection(db: Session = Depends(get_db)):
     "/create-schema-pr",
     tags=["Schema Export"],
     summary="Create PR with schema",
-    description="Generates the mapped schema (same as download-schema), creates a commit on a new branch, and opens a PR. owner, repo, file_path, branch_name, base_branch are read from server .env (GITHUB_SCHEMA_PR_*). GitHub token is from DB (PUT /api/github-connection). Request body: optional author (for visibility), pr_title, pr_body.",
+    description="Generates the mapped schema (same as download-schema), creates a commit on a new branch, and opens a PR. owner, repo, file_path, branch_name, base_branch are read from server .env (GITHUB_SCHEMA_PR_*). GitHub token is from DB (PUT /api/github-connection). Request body: optional author (for visibility), pr_title, pr_body, auto_merge (merge PR after creation), merge_method (merge/squash/rebase). Response includes merged, merge_commit_sha, merge_error when auto_merge was used.",
     responses={
         200: {"description": "PR created"},
         412: {"description": "GitHub connection not configured"},
@@ -2613,12 +2613,38 @@ async def create_schema_pr(
             raise HTTPException(status_code=r.status_code, detail=r.text or "Failed to create pull request")
         pr = r.json()
 
+        merged = None
+        merge_commit_sha = None
+        merge_error = None
+        if body.auto_merge:
+            merge_payload = {}
+            if body.merge_method is not None:
+                merge_payload["merge_method"] = body.merge_method
+            r_merge = await client.put(
+                f"https://api.github.com/repos/{owner}/{repo}/pulls/{pr['number']}/merge",
+                headers=headers,
+                json=merge_payload,
+            )
+            if r_merge.status_code == 200:
+                merged = True
+                merge_commit_sha = r_merge.json().get("sha")
+            else:
+                merged = False
+                try:
+                    err_data = r_merge.json()
+                    merge_error = err_data.get("message", r_merge.text or f"HTTP {r_merge.status_code}")
+                except Exception:
+                    merge_error = r_merge.text or f"HTTP {r_merge.status_code}"
+
     return CreateSchemaPRResponse(
         pr_url=pr["html_url"],
         pr_number=pr["number"],
         branch=branch_name,
         commit_sha=commit_sha,
         file_path=file_path,
+        merged=merged,
+        merge_commit_sha=merge_commit_sha,
+        merge_error=merge_error,
     )
 
 
