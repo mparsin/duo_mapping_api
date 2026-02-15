@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, Integer, String, BigInteger, ForeignKey, Float, Boolean, JSON, Text, DateTime
+from sqlalchemy import create_engine, Column, Integer, String, BigInteger, ForeignKey, Float, Boolean, JSON, Text, DateTime, MetaData
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 from datetime import datetime
@@ -13,10 +13,22 @@ DATABASE_URL = os.getenv(
     "postgresql://postgres:postgres@duo-mapping.cefhyz1bpgbv.us-east-2.rds.amazonaws.com:5432/duo-mapping-db"
 )
 
-engine = create_engine(DATABASE_URL)
+# Use app_runtime role for normal app connections (DML only). All tables live in "app" schema.
+# ORM uses metadata.schema="app" so all queries use app.table_name. Optionally set search_path
+# on connect (set DATABASE_SET_SEARCH_PATH=1) if your role is allowed to SET session vars.
+_connect_args = {}
+if os.getenv("DATABASE_SET_SEARCH_PATH", "").strip() in ("1", "true", "yes"):
+    _connect_args["options"] = "-c search_path=app"
+engine = create_engine(
+    DATABASE_URL,
+    connect_args=_connect_args,
+    pool_pre_ping=True,
+)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-Base = declarative_base()
+# All tables are in the "app" schema (owned by app_migrator; app_runtime has DML on them).
+metadata = MetaData(schema="app")
+Base = declarative_base(metadata=metadata)
 
 # Database Models
 class TableSet(Base):

@@ -2502,7 +2502,7 @@ async def create_schema_pr(
             status_code=500,
             detail="Server misconfiguration: GITHUB_SCHEMA_PR_OWNER and GITHUB_SCHEMA_PR_REPO must be set in .env.",
         )
-    file_path = os.getenv("GITHUB_SCHEMA_PR_FILE_PATH", "schema-config.json")
+    file_path = os.getenv("GITHUB_SCHEMA_PR_FILE_PATH", "app/config/schema-config.json")
     base_branch = os.getenv("GITHUB_SCHEMA_PR_BASE_BRANCH", "main")
     branch_name = os.getenv("GITHUB_SCHEMA_PR_BRANCH_NAME") or f"schema-export/{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}"
 

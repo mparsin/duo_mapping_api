@@ -130,7 +130,7 @@ def main() -> None:
     )
     p.add_argument("--input", "-i", required=True, help="Path to the DDL file containing CREATE TABLE / COMMENT statements.")
     p.add_argument("--output", "-o", required=True, help="Path to write generated SQL.")
-    p.add_argument("--schema", default="public", help="Schema for erp_table / erp_column (default: public).")
+    p.add_argument("--schema", default="app", help="Schema for erp_table / erp_column (default: app).")
     p.add_argument("--no-table-comments", action="store_true", help="Do not generate updates for erp_table.description.")
     p.add_argument("--no-column-comments", action="store_true", help="Do not generate updates for erp_column.comment.")
     p.add_argument("--create-missing", action="store_true", help="Emit INSERT statements for missing tables/columns before UPDATE.")
