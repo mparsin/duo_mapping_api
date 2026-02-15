@@ -1,33 +1,45 @@
 #!/usr/bin/env python3
 """
-Create indexes specifically optimized for find-table-matches endpoint
+Create indexes specifically optimized for find-table-matches endpoint.
+All tables live in the "app" schema. DDL requires app_migrator.
+Uses DATABASE_MIGRATOR_URL if set, otherwise DATABASE_URL (must be app_migrator for this script).
 """
-from database import engine
-from sqlalchemy import text
+import os
+from dotenv import load_dotenv
+load_dotenv()
+
+from sqlalchemy import create_engine, text
 import time
+
+# DDL scripts must run as app_migrator. Prefer DATABASE_MIGRATOR_URL when set.
+_db_url = os.getenv("DATABASE_MIGRATOR_URL") or os.getenv("DATABASE_URL")
+engine = create_engine(_db_url)
+
+# Schema where all app tables live (DDL must run as app_migrator).
+SCHEMA = "app"
 
 def create_table_matching_indexes():
     """Create indexes optimized for table matching queries"""
     
     indexes = [
         "-- Index for the main table matching query (ERPColumn.name with table_id)",
-        "CREATE INDEX IF NOT EXISTS idx_erp_column_name_table_id ON erp_column (name, table_id);",
+        f"CREATE INDEX IF NOT EXISTS idx_erp_column_name_table_id ON {SCHEMA}.erp_column (name, table_id);",
         
         "-- Index for case-insensitive column name lookups with table_id",
-        "CREATE INDEX IF NOT EXISTS idx_erp_column_lower_name_table_id ON erp_column (LOWER(name), table_id);",
+        f"CREATE INDEX IF NOT EXISTS idx_erp_column_lower_name_table_id ON {SCHEMA}.erp_column (LOWER(name), table_id);",
         
         "-- Index for erp_table.id lookups",
-        "CREATE INDEX IF NOT EXISTS idx_erp_table_id_lookup ON erp_table (id);",
+        f"CREATE INDEX IF NOT EXISTS idx_erp_table_id_lookup ON {SCHEMA}.erp_table (id);",
         
         "-- Index for erp_table.name lookups (for sorting by table name)",
-        "CREATE INDEX IF NOT EXISTS idx_erp_table_name ON erp_table (name);",
+        f"CREATE INDEX IF NOT EXISTS idx_erp_table_name ON {SCHEMA}.erp_table (name);",
         
         "-- Index for table_id foreign key in erp_column",
-        "CREATE INDEX IF NOT EXISTS idx_erp_column_table_id_fk ON erp_column (table_id);",
+        f"CREATE INDEX IF NOT EXISTS idx_erp_column_table_id_fk ON {SCHEMA}.erp_column (table_id);",
         
         "-- Update statistics to help query planner",
-        "ANALYZE erp_column;",
-        "ANALYZE erp_table;"
+        f"ANALYZE {SCHEMA}.erp_column;",
+        f"ANALYZE {SCHEMA}.erp_table;"
     ]
     
     print("Creating table matching performance indexes...")
