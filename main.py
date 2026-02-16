@@ -294,7 +294,7 @@ def generate_mapped_schema(db: Session) -> Dict[str, Any]:
 
 # Helper function to generate upload config JSON from category table
 def generate_upload_config(db: Session) -> Dict[str, Any]:
-    """Generate upload config JSON from category table grouped by table sets (ordered by table_set id), with tables ordered by category line_no"""
+    """Generate upload config JSON from category table grouped by table sets (ordered by table_set seq_no), with tables ordered by category line_no"""
     
     # Get all categories with both config and table_set_id, ordered by seq_no (line_no)
     categories = db.query(Category).filter(
@@ -318,6 +318,7 @@ def generate_upload_config(db: Session) -> Dict[str, Any]:
         if table_set_id not in table_set_groups:
             table_set_groups[table_set_id] = {
                 "table_set_id": table_set_id,
+                "seq_no": category.table_set.seq_no if category.table_set.seq_no is not None else float("inf"),
                 "set_name": category.table_set.name,
                 "tables": []
             }
@@ -342,9 +343,9 @@ def generate_upload_config(db: Session) -> Dict[str, Any]:
         # Add table to this set's tables list
         table_set_groups[table_set_id]["tables"].append(table_entry)
     
-    # Convert to list and sort by table_set_id
+    # Convert to list and sort by table_set seq_no (nulls last)
     upload_order = []
-    for table_set_data in sorted(table_set_groups.values(), key=lambda x: x["table_set_id"]):
+    for table_set_data in sorted(table_set_groups.values(), key=lambda x: (x["seq_no"], x["table_set_id"])):
         # Sort tables within this set by line_no
         sorted_tables = sorted(table_set_data["tables"], key=lambda t: t["line_no"])
         
