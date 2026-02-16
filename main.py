@@ -1,6 +1,6 @@
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from sqlalchemy.orm import Session, joinedload
 from database import get_db, Category, Lines, ERPTable, ERPColumn, SubCategory, TableSet, GitHubConnection
 from auth import require_cognito_token
@@ -2375,12 +2375,13 @@ async def download_upload_config(db: Session = Depends(get_db)):
         timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
         filename = f"upload-config_{timestamp}.json"
         
-        # Return as JSON download
-        return JSONResponse(
-            content=config_data,
+        # Return as JSON download (human-readable / pretty-printed)
+        json_str = json.dumps(config_data, indent=2, ensure_ascii=False)
+        return Response(
+            content=json_str.encode("utf-8"),
+            media_type="application/json",
             headers={
                 "Content-Disposition": f"attachment; filename={filename}",
-                "Content-Type": "application/json"
             }
         )
     except Exception as e:
